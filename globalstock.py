@@ -23,13 +23,7 @@ def download_stock_data(tickers, period, interval):
 @st.cache
 def process_data(data, period):
     try:
-         # Ensure Datetime column is in the correct format
-        df['Datetime'] = pd.to_datetime(df['Datetime'])
-        
-        # Derive High and Low based on Open and Close
-        df['High'] = df[['Open', 'Close']].max(axis=1)
-        df['Low'] = df[['Open', 'Close']].min(axis=1)
-        
+             
         # Rearranging the DataFrame
         portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
 
