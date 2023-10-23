@@ -246,6 +246,12 @@ amex = st.sidebar.checkbox("AMEX", value=True)
 # Fetching tickers based on user's selection of exchanges
 tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
 
+## Ensure custom_ticker is defined
+custom_ticker = st.text_input("Enter a custom ticker:", "")
+
+# Ensure tickers_list is initialized
+tickers_list = tickers_list if 'tickers_list' in locals() else []
+
 # Create a selectbox widget that combines predefined tickers and custom tickers
 if custom_ticker and custom_ticker not in tickers_list:
     tickers_list.append(custom_ticker)  # Add custom ticker to the end of the list
