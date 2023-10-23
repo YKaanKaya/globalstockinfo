@@ -25,19 +25,24 @@ def process_data(data, period):
         # Rearranging the DataFrame
         portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
 
+        if len(portfolio['Symbol'].unique()) == 1:
+            # If only one ticker is selected, return the original data without processing
+            return portfolio
+
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
         # Calculating moving average based on the chosen period
-        portfolio[f"Moving Average-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
+        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
 
         # Reordering the DataFrame columns
-        columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"Moving Average-{period}"]
+        columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
         return portfolio[columns_order]
 
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
+
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
