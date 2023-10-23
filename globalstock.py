@@ -1,6 +1,10 @@
 import yfinance as yf
 import streamlit as st
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+import plotly.express as px
+import plotly.graph_objects as go
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
