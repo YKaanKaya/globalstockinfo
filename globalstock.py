@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
-def download_stock_data(tickers=["AAPL"], period="1d", interval="1m"):
+def download_stock_data(tickers=["AAPL", "TSLA"], period="1d", interval="1m"):
     all_data = {}
     for ticker in tickers:
         stock_data = yf.download(ticker, period=period, interval=interval)
@@ -32,7 +32,7 @@ def main():
     st.title("Stock Data Downloader")
 
     # 1. User Input
-    tickers = st.text_input("Enter the stock tickers (comma-separated)", "AAPL").split(',')
+    tickers = st.text_input("Enter the stock tickers (comma-separated)", "AAPL,TSLA").split(',')
 
     valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
     period = st.selectbox("Select Data Period", valid_periods, index=0)
