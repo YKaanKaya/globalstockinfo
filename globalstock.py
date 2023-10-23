@@ -13,35 +13,31 @@ def download_stock_data(ticker="AAPL", period="1d", interval="1m"):
     stock_data = yf.download(ticker, period=period, interval=interval)
     return stock_data
 
-def save_to_csv(dataframe, filename):
-    dataframe.to_csv(filename)
-    print(f"Data saved to {filename}.")
+def main():
+    st.title("Stock Data Downloader")
 
-def get_valid_input(prompt, accepted_values):
-    user_input = input(prompt).lower()
-    while user_input not in accepted_values:
-        print(f"Invalid input. Accepted values: {', '.join(accepted_values)}")
-        user_input = input(prompt).lower()
-    return user_input
-
-if __name__ == "__main__":
     # 1. User Input
-    ticker = input("Enter the stock ticker (default: AAPL): ") or "AAPL"
+    ticker = st.text_input("Enter the stock ticker", "AAPL").upper()
 
     valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
-    period = get_valid_input("Enter the data period (default: 1d): ", valid_periods) or "1d"
+    period = st.selectbox("Select Data Period", valid_periods, index=0)
 
     valid_intervals = ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]
-    interval = get_valid_input("Enter the data interval (default: 1m): ", valid_intervals) or "1m"
+    interval = st.selectbox("Select Data Interval", valid_intervals, index=0)
 
-    # 2. Download Data
-    data = download_stock_data(ticker, period, interval)
+    # 2. Download and Display Data
+    if st.button("Fetch Data"):
+        with st.spinner("Fetching Data..."):
+            data = download_stock_data(ticker, period, interval)
+        st.write(data)
 
-    # 3. Display Data
-    print(data)
+        # 3. Option to Save
+        if st.button("Download as CSV"):
+            csv = data.to_csv(index=True)
+            b64 = base64.b64encode(csv.encode()).decode()
+            href = f'<a href="data:file/csv;base64,{b64}" download="{ticker}_data.csv">Download CSV File</a>'
+            st.markdown(href, unsafe_allow_html=True)
 
-    # 4. Option to Save
-    save_option = input("Do you want to save the data to a CSV? (yes/no): ").lower()
-    if save_option == "yes":
-        filename = f"{ticker}_data.csv"
-        save_to_csv(data, filename)
+if __name__ == "__main__":
+    import base64
+    main()
