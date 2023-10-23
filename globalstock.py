@@ -156,6 +156,8 @@ def main():
                         esg_data_list.append(esg_data)
 
                 final_data = pd.concat(data_frames)
+                
+                st.dataframe(final_data)  # <-- Add this line to display the stock data
 
                 if display_esg:
                     display_esg_data_table(tickers, esg_data_list)
