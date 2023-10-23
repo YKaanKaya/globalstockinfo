@@ -302,10 +302,6 @@ if show_esg:
 
 st.markdown(get_table_download_link(processed_data), unsafe_allow_html=True)
 
-# User-friendly instructions for downloading CSV
-st.markdown("To download the displayed data as CSV:")
-st.markdown("1. Click on the menu (three horizontal dots) on the top right of the data table.")
-st.markdown("2. Click on 'Download CSV'.")
 
 # A bit more about the app
 st.markdown("""
