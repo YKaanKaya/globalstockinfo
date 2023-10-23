@@ -246,21 +246,15 @@ amex = st.sidebar.checkbox("AMEX", value=True)
 # Fetching tickers based on user's selection of exchanges
 tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
 
-## Ensure custom_ticker is defined
-custom_ticker = st.text_input("Enter a custom ticker:", "")
+# Allow the user to input a custom ticker
+custom_ticker = st.sidebar.text_input("Input a custom ticker (optional)").strip().upper()  # Convert to uppercase and remove leading/trailing spaces
 
-# Ensure tickers_list is initialized
-tickers_list = tickers_list if 'tickers_list' in locals() else []
-
-# Create a selectbox widget that combines predefined tickers and custom tickers
-if custom_ticker and custom_ticker not in tickers_list:
-    tickers_list.append(custom_ticker)  # Add custom ticker to the end of the list
-
-selected_ticker = st.sidebar.selectbox(
-    "Choose Ticker",
+# Create a multiselect widget that combines predefined tickers and custom tickers
+selected_tickers = st.sidebar.multiselect(
+    "Choose Tickers",
     options=tickers_list,
-    index=tickers_list.index('AAPL') if 'AAPL' in tickers_list else 0,  # Default to AAPL or the first ticker
-    key="selected_ticker"  # Provide a unique key to differentiate this widget
+    default=['AAPL', 'TSLA'],  # Default predefined tickers
+    key="selected_tickers"  # Provide a unique key to differentiate this widget
 )
 
 # Append the custom ticker if it's provided and not already in the list
@@ -277,26 +271,26 @@ interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
-data = download_stock_data([selected_ticker], period, interval)  # Wrap selected_ticker in a list here
+data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
         st.write("### Stock Data")
         st.write(processed_data)
 
-        # Display time series chart for the selected symbol over the entire period
-        display_time_series_chart(processed_data, [selected_ticker], data.index[0].date(), data.index[-1].date())
-
+        # Display time series chart for the selected symbols over the entire period
+        display_time_series_chart(processed_data, selected_tickers, data.index[0].date(), data.index[-1].date())
 
 # Display ESG data
 if show_esg:
     st.write("### ESG Data")
-    esg_data = get_esg_data_with_headers_and_error_handling(selected_ticker)  # Remove list comprehension
-    if esg_data:
-        display_esg_data_table([selected_ticker], [esg_data])
-        display_risk_levels([selected_ticker], [esg_data["Total ESG risk score"]])
+    esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in selected_tickers]
+    if all(data is not None for data in esg_data_list):
+        display_esg_data_table(selected_tickers, esg_data_list)
+        esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
+        display_risk_levels(selected_tickers, esg_scores)
     else:
-        st.error(f"Failed to fetch ESG data for ticker: {selected_ticker}.")
+        st.error("Failed to fetch ESG data for one or more tickers.")
 
 # A bit more about the app
 st.markdown("""
