@@ -235,7 +235,7 @@ amex = st.sidebar.checkbox("AMEX", value=True)
 tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
 
 # Accept multiple tickers from the user using the fetched tickers list
-selected_tickers = st.sidebar.multiselect("Choose Tickers", tickers_list, default=['AAPL', 'TSLA'])
+tickers = st.sidebar.multiselect("Choose Tickers", tickers_list, default=['AAPL', 'TSLA'])
 
 st.write(f"You selected: {', '.join(selected_tickers)}")
 
