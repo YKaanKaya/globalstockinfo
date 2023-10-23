@@ -245,6 +245,9 @@ if data is not None:
         st.write("### Stock Data")
         st.write(processed_data)
 
+        # Display time series chart for the selected symbols over the entire period
+        display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
+
 # Display ESG data
 if show_esg:
     st.write("### ESG Data")
