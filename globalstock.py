@@ -20,23 +20,38 @@ def download_stock_data(tickers, period, interval):
 
 # Function to process the downloaded data and compute cumulative return and moving average
 def process_data(data, period):
-    try:
-        # Rearranging the DataFrame
-        portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
+    # Convert period string to equivalent number of days
+    days = period_to_days(period)
+    
+    if days is None:
+        raise ValueError(f"Invalid period format: {period}")
 
-        # Calculating cumulative returns
-        portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
+    # Sample data processing - you can replace this with your actual logic
+    moving_average = sum(data[-days:]) / days
+    cumulative_return = (data[-1] - data[0]) / data[0]
 
-        # Calculating moving average based on the chosen period
-        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
+    return moving_average, cumulative_return
 
-        # Reordering the DataFrame columns
-        columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
-        return portfolio[columns_order]
+# Sample Usage:
+data_sample = [100, 102, 103, 101, 99, 98, 97, 96, 95, 94]
+period_sample = "10d"
+print(process_data(data_sample, period_sample))
 
-    except Exception as e:
-        st.error(f"Error processing data: {e}")
+def period_to_days(period_str):
+    """
+    Convert a period string such as '1m', '2y' to its equivalent in days.
+    """
+    if period_str[-1] == 'd':  # days
+        return int(period_str[:-1])
+    elif period_str[-1] == 'mo':  # months
+        return int(period_str[:-2]) * 30
+    elif period_str[-1] == 'y':  # years
+        return int(period_str[:-1]) * 365
+    else:
+        # handle any other cases or raise an error if needed
         return None
+
+
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
