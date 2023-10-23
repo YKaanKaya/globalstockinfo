@@ -10,19 +10,16 @@ import plotly.express as px
 import base64
 
 
+
 def download_stock_data(tickers=["AAPL"], period="1d", interval="1m"):
-    all_data = []
+    all_data = {}
 
     for ticker in tickers:
         stock_data = yf.download(ticker, period=period, interval=interval)
-        stock_data['Ticker'] = ticker  # Add ticker column
-        all_data.append(stock_data)
+        all_data[ticker] = stock_data['Close']  # Only take closing price
 
-    # Concatenate the list of dataframes
-    combined_data = pd.concat(all_data)
-    # Pivot data to have dates as index and tickers as columns
-    pivoted_data = combined_data.pivot_table(index=['Date'], columns='Ticker', values='Close')
-    return pivoted_data
+    df = pd.DataFrame(all_data)
+    return df
 
 def main():
     st.title("Stock Data Downloader")
@@ -41,6 +38,16 @@ def main():
         with st.spinner("Fetching Data..."):
             data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
             st.write(data)
+
+        # 3. Option to Save
+        if st.button("Download as CSV"):
+            csv = data.to_csv(index=True)
+            b64 = base64.b64encode(csv.encode()).decode()
+            href = f'<a href="data:file/csv;base64,{b64}" download="data.csv">Download CSV File</a>'
+            st.markdown(href, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
 
         # 3. Option to Save
         if st.button("Download as CSV"):
