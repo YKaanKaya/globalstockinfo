@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
+
 def download_stock_data(tickers=["AAPL", "TSLA"], period="1d", interval="1m"):
     all_data = {}
     for ticker in tickers:
@@ -22,7 +23,7 @@ def download_stock_data(tickers=["AAPL", "TSLA"], period="1d", interval="1m"):
 def process_data(Portfolio):
     try:
         portfolio = Portfolio.copy().reset_index().rename(index=str, columns={"index": "Datetime"})
-        portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open'] * portfolio['Close']
+        portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open']
         return portfolio
     except Exception as e:
         st.error(f"Error processing data: {e}")
@@ -41,18 +42,17 @@ def main():
     interval = st.selectbox("Select Data Interval", valid_intervals, index=0)
 
     # 2. Download, Process and Display Data
-    if st.button("Fetch Data"):
-        with st.spinner("Fetching Data..."):
-            raw_data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
-            processed_data = process_data(raw_data)
-            st.write(processed_data)
+    with st.spinner("Fetching Data..."):
+        raw_data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
+        processed_data = process_data(raw_data)
+        st.write(processed_data)
 
-        # 3. Option to Save
-        if st.button("Download as CSV"):
-            csv = processed_data.to_csv(index=False)
-            b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="data.csv">Download CSV File</a>'
-            st.markdown(href, unsafe_allow_html=True)
+    # 3. Option to Save
+    if st.button("Download as CSV"):
+        csv = processed_data.to_csv(index=False)
+        b64 = base64.b64encode(csv.encode()).decode()
+        href = f'<a href="data:file/csv;base64,{b64}" download="data.csv">Download CSV File</a>'
+        st.markdown(href, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
