@@ -219,13 +219,8 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
         
 # ------ Main App ------
 
-st.title("Stock and ESG Data Viewer")
-
-# Sidebar controls for user input
-st.sidebar.header("Select Options")
-
 # Title for the Streamlit app
-st.title("Stock Data Downloader")
+st.title("Stock and ESG Data Viewer")
 
 # Sidebar controls for user input
 st.sidebar.header("Select Options")
@@ -238,10 +233,11 @@ period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo',
 
 # Interval selection
 interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=8)
+
 # If user wants to see ESG data
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
-# Main app flow
+# Downloading and processing the data based on user selection
 data = download_stock_data(tickers, period, interval)
 if data is not None:
     processed_data = process_data(data, period)
@@ -259,14 +255,6 @@ if show_esg:
         display_risk_levels(tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
-        
-# Downloading and processing the data based on user selection
-data = download_stock_data(tickers, period, interval)
-if data is not None:
-    processed_data = process_data(data, period)
-    if processed_data is not None:
-        # Display the processed data on the app
-        st.write(processed_data)
 
 # User-friendly instructions for downloading CSV
 st.markdown("To download the displayed data as CSV:")
