@@ -11,16 +11,13 @@ import base64
 import ticker_fetcher
 
 # Function to download stock data using yfinance
-def download_stock_data(selected_tickers, period, interval):
-    try:
-        if isinstance(selected_tickers, str):
-            # If there's only one ticker, wrap it in a list
-            selected_tickers = [selected_tickers]
 
+def download_stock_data(Stocks):
+    try:
         data = yf.download(selected_tickers, period=period, interval=interval)
         return data
     except Exception as e:
-        st.error(f"Error downloading data: {e}")
+        st.error(f"Error downloading stock data: {e}")
         return None
 
 # Function to process the downloaded data and compute cumulative return and moving average
