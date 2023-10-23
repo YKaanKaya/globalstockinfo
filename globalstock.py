@@ -13,23 +13,13 @@ import ticker_fetcher
 # Function to download stock data using yfinance
 def download_stock_data(selected_tickers, period, interval):
     try:
-        # Convert period strings to integer for 'window'
-        if period.endswith('d'):
-            window = int(period[:-1])
-        elif period.endswith('mo'):
-            window = int(period[:-2]) * 21  # Assuming 21 trading days per month
-        elif period.endswith('y'):
-            window = int(period[:-1]) * 252  # Assuming 252 trading days per year
-        else:
-            st.error("Invalid period format")
-            return None
-
-        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker', window=window)
+        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
         return None
 
+# Function to process the downloaded data and compute cumulative return and moving average
 def process_data(data, period):
     try:
         # Rearranging the DataFrame
@@ -45,14 +35,11 @@ def process_data(data, period):
             st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
             return portfolio
 
-        # Calculate the rolling window for moving average based on the chosen period
-        rolling_window = period_to_timedelta(period)
-
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
-        # Calculating moving average
-        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=rolling_window, min_periods=1).mean())
+        # Calculating moving average based on the chosen period
+        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
 
         # Reordering the DataFrame columns
         columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
@@ -61,18 +48,6 @@ def process_data(data, period):
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
-        
-#convert selected 'Xmo' as the period.
-def period_to_timedelta(period):
-    if period.endswith('d'):
-        days = int(period[:-1])
-        return timedelta(days=days)
-    elif period.endswith('mo'):
-        months = int(period[:-2])
-        # Assuming 30 days per month, you can adjust as needed
-        return timedelta(days=months * 30)
-    else:
-        raise ValueError(f"Unsupported period: {period}")
         
 # Scrape the ESG data
 @st.cache
@@ -289,22 +264,14 @@ if custom_ticker and custom_ticker not in selected_tickers:
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
 
-
-# Create the interval selection widget and update st.session_state.selected_interval when changed
-selected_interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0, key="selected_interval")
-if selected_interval != st.session_state.selected_interval:
-    st.session_state.selected_interval = selected_interval
+# Interval selection
+interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0)
 
 # If user wants to see ESG data
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
 data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
-
-# Add the custom ticker if it's provided and not already in the list
-if custom_ticker and custom_ticker not in selected_tickers:
-    selected_tickers.append(custom_ticker)
-    
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
