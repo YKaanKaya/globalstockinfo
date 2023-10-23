@@ -237,7 +237,7 @@ tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
 # Accept multiple tickers from the user using the fetched tickers list
 tickers = st.sidebar.multiselect("Choose Tickers", tickers_list, default=['AAPL', 'TSLA'])
 
-st.write(f"You selected: {', '.join(selected_tickers)}")
+st.write(f"You selected: {', '.join(tickers)}")
 
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
