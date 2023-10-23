@@ -13,7 +13,7 @@ import ticker_fetcher
 # Function to download stock data using yfinance
 def download_stock_data(selected_tickers, period, interval):
     try:
-        data = yf.history(selected_tickers, period=period, interval=interval)
+        data = yf.Tickers(selected_tickers, period=period, interval=interval)
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
