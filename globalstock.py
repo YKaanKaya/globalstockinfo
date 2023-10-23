@@ -9,15 +9,19 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
-def download_stock_data(ticker="AAPL", period="1d", interval="1m"):
-    stock_data = yf.download(ticker, period=period, interval=interval)
-    return stock_data
+def download_stock_data(tickers=["AAPL"], period="1d", interval="1m"):
+    all_data = {}
+    for ticker in tickers:
+        stock_data = yf.download(ticker, period=period, interval=interval)
+        all_data[ticker] = stock_data
+    return all_data
 
 def main():
     st.title("Stock Data Downloader")
 
     # 1. User Input
-    ticker = st.text_input("Enter the stock ticker", "AAPL").upper()
+    default_tickers = ["AAPL"]
+    tickers = st.multiselect("Enter the stock tickers", default=default_tickers)
 
     valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
     period = st.selectbox("Select Data Period", valid_periods, index=0)
@@ -28,16 +32,18 @@ def main():
     # 2. Download and Display Data
     if st.button("Fetch Data"):
         with st.spinner("Fetching Data..."):
-            data = download_stock_data(ticker, period, interval)
-        st.write(data)
+            data_dict = download_stock_data(tickers, period, interval)
+            for ticker, data in data_dict.items():
+                st.subheader(ticker)
+                st.write(data)
 
         # 3. Option to Save
         if st.button("Download as CSV"):
-            csv = data.to_csv(index=True)
-            b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="{ticker}_data.csv">Download CSV File</a>'
-            st.markdown(href, unsafe_allow_html=True)
+            for ticker, data in data_dict.items():
+                csv = data.to_csv(index=True)
+                b64 = base64.b64encode(csv.encode()).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="{ticker}_data.csv">Download {ticker} CSV File</a>'
+                st.markdown(href, unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    import base64
     main()
