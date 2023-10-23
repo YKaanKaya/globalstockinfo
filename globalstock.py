@@ -9,19 +9,19 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
-
 def download_stock_data(tickers=["AAPL"], period="1d", interval="1m"):
     all_data = {}
     for ticker in tickers:
         stock_data = yf.download(ticker, period=period, interval=interval)
-        all_data[ticker] = stock_data[['Open', 'Close']]  # Take both Open and Close prices
+        stock_data['Symbol'] = ticker  # Add a 'Symbol' column to differentiate data
+        all_data[ticker] = stock_data[['Open', 'Close', 'Symbol']]
 
-    df = pd.DataFrame(all_data)
-    return df
+    combined_data = pd.concat(all_data.values(), axis=0)  # Combine all ticker data
+    return combined_data
 
 def process_data(Portfolio):
     try:
-        portfolio = Portfolio.stack().reset_index().rename(index=str, columns={"level_1": "Symbol", "level_0": "Datetime"})
+        portfolio = Portfolio.copy().reset_index().rename(index=str, columns={"index": "Datetime"})
         portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open']
         return portfolio
     except Exception as e:
