@@ -1,4 +1,13 @@
+import streamlit as st
+import pandas as pd
 import yfinance as yf
+from datetime import datetime, timedelta
+import requests
+from bs4 import BeautifulSoup
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import plotly.express as px
+import base64
 
 def download_stock_data(ticker="AAPL", period="1d", interval="1m"):
     """
