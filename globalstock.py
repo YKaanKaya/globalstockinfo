@@ -22,7 +22,7 @@ def download_stock_data(tickers=["AAPL", "TSLA"], period="1d", interval="1m"):
 def process_data(Portfolio):
     try:
         portfolio = Portfolio.copy().reset_index().rename(index=str, columns={"index": "Datetime"})
-        portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open']
+        portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open'] * portfolio['Close']
         return portfolio
     except Exception as e:
         st.error(f"Error processing data: {e}")
