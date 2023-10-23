@@ -1,270 +1,220 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": 3,
-   "id": "2cc302da",
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "['A', 'AA', 'AAC', 'AACT', 'AAIC']\n"
-     ]
-    }
-   ],
-   "source": [
-    "import pandas as pd\n",
-    "from enum import Enum\n",
-    "import io\n",
-    "import requests\n",
-    "\n",
-    "_EXCHANGE_LIST = ['nyse', 'nasdaq', 'amex']\n",
-    "\n",
-    "_SECTORS_LIST = set(['Consumer Non-Durables', 'Capital Goods', 'Health Care',\n",
-    "       'Energy', 'Technology', 'Basic Industries', 'Finance',\n",
-    "       'Consumer Services', 'Public Utilities', 'Miscellaneous',\n",
-    "       'Consumer Durables', 'Transportation'])\n",
-    "\n",
-    "\n",
-    "# headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df\n",
-    "headers = {\n",
-    "    'authority': 'api.nasdaq.com',\n",
-    "    'accept': 'application/json, text/plain, */*',\n",
-    "    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36',\n",
-    "    'origin': 'https://www.nasdaq.com',\n",
-    "    'sec-fetch-site': 'same-site',\n",
-    "    'sec-fetch-mode': 'cors',\n",
-    "    'sec-fetch-dest': 'empty',\n",
-    "    'referer': 'https://www.nasdaq.com/',\n",
-    "    'accept-language': 'en-US,en;q=0.9',\n",
-    "}\n",
-    "\n",
-    "def params(exchange):\n",
-    "    return (\n",
-    "        ('letter', '0'),\n",
-    "        ('exchange', exchange),\n",
-    "        ('download', 'true'),\n",
-    "    )\n",
-    "\n",
-    "def params_region(region):\n",
-    "    return (\n",
-    "        ('letter', '0'),\n",
-    "        ('region', region),\n",
-    "        ('download', 'true'),\n",
-    "    )\n",
-    "\n",
-    "# I know it's weird to have Sectors as constants, yet the Regions as enums, but\n",
-    "# it makes the most sense to me\n",
-    "class Region(Enum):\n",
-    "    AFRICA = 'AFRICA'\n",
-    "    EUROPE = 'EUROPE'\n",
-    "    ASIA = 'ASIA'\n",
-    "    AUSTRALIA_SOUTH_PACIFIC = 'AUSTRALIA+AND+SOUTH+PACIFIC'\n",
-    "    CARIBBEAN = 'CARIBBEAN'\n",
-    "    SOUTH_AMERICA = 'SOUTH+AMERICA'\n",
-    "    MIDDLE_EAST = 'MIDDLE+EAST'\n",
-    "    NORTH_AMERICA = 'NORTH+AMERICA'\n",
-    "\n",
-    "class SectorConstants:\n",
-    "    NON_DURABLE_GOODS = 'Consumer Non-Durables'\n",
-    "    CAPITAL_GOODS = 'Capital Goods'\n",
-    "    HEALTH_CARE = 'Health Care'\n",
-    "    ENERGY = 'Energy'\n",
-    "    TECH = 'Technology'\n",
-    "    BASICS = 'Basic Industries'\n",
-    "    FINANCE = 'Finance'\n",
-    "    SERVICES = 'Consumer Services'\n",
-    "    UTILITIES = 'Public Utilities'\n",
-    "    DURABLE_GOODS = 'Consumer Durables'\n",
-    "    TRANSPORT = 'Transportation'\n",
-    "\n",
-    "\n",
-    "# get tickers from chosen exchanges (default all) as a list\n",
-    "def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):\n",
-    "    tickers_list = []\n",
-    "    if NYSE:\n",
-    "        tickers_list.extend(__exchange2list('nyse'))\n",
-    "    if NASDAQ:\n",
-    "        tickers_list.extend(__exchange2list('nasdaq'))\n",
-    "    if AMEX:\n",
-    "        tickers_list.extend(__exchange2list('amex'))\n",
-    "    return tickers_list\n",
-    "\n",
-    "\n",
-    "def get_tickers_filtered(mktcap_min=None, mktcap_max=None, sectors=None):\n",
-    "    tickers_list = []\n",
-    "    for exchange in _EXCHANGE_LIST:\n",
-    "        tickers_list.extend(__exchange2list_filtered(exchange, mktcap_min=mktcap_min, mktcap_max=mktcap_max, sectors=sectors))\n",
-    "    return tickers_list\n",
-    "\n",
-    "\n",
-    "def get_biggest_n_tickers(top_n, sectors=None):\n",
-    "    df = pd.DataFrame()\n",
-    "    for exchange in _EXCHANGE_LIST:\n",
-    "        temp = __exchange2df(exchange)\n",
-    "        df = pd.concat([df, temp])\n",
-    "        \n",
-    "    df = df.dropna(subset={'marketCap'})\n",
-    "    df = df[~df['symbol'].str.contains(\"\\.|\\^\")]\n",
-    "\n",
-    "    if sectors is not None:\n",
-    "        if isinstance(sectors, str):\n",
-    "            sectors = [sectors]\n",
-    "        if not _SECTORS_LIST.issuperset(set(sectors)):\n",
-    "            raise ValueError('Some sectors included are invalid')\n",
-    "        sector_filter = df['Sector'].apply(lambda x: x in sectors)\n",
-    "        df = df[sector_filter]\n",
-    "\n",
-    "    def cust_filter(mkt_cap):\n",
-    "        if 'M' in mkt_cap:\n",
-    "            return float(mkt_cap[1:-1])\n",
-    "        elif 'B' in mkt_cap:\n",
-    "            return float(mkt_cap[1:-1]) * 1000\n",
-    "        else:\n",
-    "            return float(mkt_cap[1:]) / 1e6\n",
-    "    df['marketCap'] = df['marketCap'].apply(cust_filter)\n",
-    "\n",
-    "    df = df.sort_values('marketCap', ascending=False)\n",
-    "    if top_n > len(df):\n",
-    "        raise ValueError('Not enough companies, please specify a smaller top_n')\n",
-    "\n",
-    "    return df.iloc[:top_n]['symbol'].tolist()\n",
-    "\n",
-    "\n",
-    "def get_tickers_by_region(region):\n",
-    "    if region in Region:\n",
-    "        response = requests.get('https://old.nasdaq.com/screening/companies-by-name.aspx', headers=headers,\n",
-    "                                params=params_region(region))\n",
-    "        data = io.StringIO(response.text)\n",
-    "        df = pd.read_csv(data, sep=\",\")\n",
-    "        return __exchange2list(df)\n",
-    "    else:\n",
-    "        raise ValueError('Please enter a valid region (use a Region.REGION as the argument, e.g. Region.AFRICA)')\n",
-    "\n",
-    "def __exchange2df(exchange):\n",
-    "    r = requests.get('https://api.nasdaq.com/api/screener/stocks', headers=headers, params=params(exchange))\n",
-    "    data = r.json()['data']\n",
-    "    df = pd.DataFrame(data['rows'], columns=data['headers'])\n",
-    "    return df\n",
-    "\n",
-    "def __exchange2list(exchange):\n",
-    "    df = __exchange2df(exchange)\n",
-    "    # removes weird tickers\n",
-    "    df_filtered = df[~df['symbol'].str.contains(\"\\.|\\^\")]\n",
-    "    return df_filtered['symbol'].tolist()\n",
-    "\n",
-    "# market caps are in millions\n",
-    "def __exchange2list_filtered(exchange, mktcap_min=None, mktcap_max=None, sectors=None):\n",
-    "    df = __exchange2df(exchange)\n",
-    "    df = df.dropna(subset={'marketCap'})\n",
-    "    df = df[~df['symbol'].str.contains(\"\\.|\\^\")]\n",
-    "\n",
-    "    if sectors is not None:\n",
-    "        if isinstance(sectors, str):\n",
-    "            sectors = [sectors]\n",
-    "        if not _SECTORS_LIST.issuperset(set(sectors)):\n",
-    "            raise ValueError('Some sectors included are invalid')\n",
-    "        sector_filter = df['sector'].apply(lambda x: x in sectors)\n",
-    "        df = df[sector_filter]\n",
-    "\n",
-    "    def cust_filter(mkt_cap):\n",
-    "        if 'M' in mkt_cap:\n",
-    "            return float(mkt_cap[1:-1])\n",
-    "        elif 'B' in mkt_cap:\n",
-    "            return float(mkt_cap[1:-1]) * 1000\n",
-    "        elif mkt_cap == '':\n",
-    "            return 0.0\n",
-    "        else:\n",
-    "            return float(mkt_cap[1:]) / 1e6\n",
-    "    df['marketCap'] = df['marketCap'].apply(cust_filter)\n",
-    "    if mktcap_min is not None:\n",
-    "        df = df[df['marketCap'] > mktcap_min]\n",
-    "    if mktcap_max is not None:\n",
-    "        df = df[df['marketCap'] < mktcap_max]\n",
-    "    return df['symbol'].tolist()\n",
-    "\n",
-    "\n",
-    "# save the tickers to a CSV\n",
-    "def save_tickers(NYSE=True, NASDAQ=True, AMEX=True, filename='tickers.csv'):\n",
-    "    tickers2save = get_tickers(NYSE, NASDAQ, AMEX)\n",
-    "    df = pd.DataFrame(tickers2save)\n",
-    "    df.to_csv(filename, header=False, index=False)\n",
-    "\n",
-    "def save_tickers_by_region(region, filename='tickers_by_region.csv'):\n",
-    "    tickers2save = get_tickers_by_region(region)\n",
-    "    df = pd.DataFrame(tickers2save)\n",
-    "    df.to_csv(filename, header=False, index=False)\n",
-    "\n",
-    "\n",
-    "if __name__ == '__main__':\n",
-    "\n",
-    "    # tickers of all exchanges\n",
-    "    tickers = get_tickers()\n",
-    "    print(tickers[:5])\n",
-    "\n",
-    "    # tickers from NYSE and NASDAQ only\n",
-    "    tickers = get_tickers(AMEX=False)\n",
-    "\n",
-    "    # default filename is tickers.csv, to specify, add argument filename='yourfilename.csv'\n",
-    "    save_tickers()\n",
-    "\n",
-    "    # save tickers from NYSE and AMEX only\n",
-    "    save_tickers(NASDAQ=False)\n",
-    "\n",
-    "    # get tickers from Asia\n",
-    "    tickers_asia = get_tickers_by_region(Region.ASIA)\n",
-    "    print(tickers_asia[:5])\n",
-    "\n",
-    "    # save tickers from Europe\n",
-    "    save_tickers_by_region(Region.EUROPE, filename='EU_tickers.csv')\n",
-    "\n",
-    "    # get tickers filtered by market cap (in millions)\n",
-    "    filtered_tickers = get_tickers_filtered(mktcap_min=500, mktcap_max=2000)\n",
-    "    print(filtered_tickers[:5])\n",
-    "\n",
-    "    # not setting max will get stocks with $2000 million market cap and up.\n",
-    "    filtered_tickers = get_tickers_filtered(mktcap_min=2000)\n",
-    "    print(filtered_tickers[:5])\n",
-    "\n",
-    "    # get tickers filtered by sector\n",
-    "    filtered_by_sector = get_tickers_filtered(mktcap_min=200e3, sectors=SectorConstants.FINANCE)\n",
-    "    print(filtered_by_sector[:5])\n",
-    "\n",
-    "    # get tickers of 5 largest companies by market cap (specify sectors=SECTOR)\n",
-    "    top_5 = get_biggest_n_tickers(5)\n",
-    "    print(top_5)"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "07165420",
-   "metadata": {},
-   "outputs": [],
-   "source": []
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.10.9"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
+import pandas as pd
+from enum import Enum
+import io
+import requests
+#credit to shilewenuw
+_EXCHANGE_LIST = ['nyse', 'nasdaq', 'amex']
+
+_SECTORS_LIST = set(['Consumer Non-Durables', 'Capital Goods', 'Health Care',
+       'Energy', 'Technology', 'Basic Industries', 'Finance',
+       'Consumer Services', 'Public Utilities', 'Miscellaneous',
+       'Consumer Durables', 'Transportation'])
+
+
+# headers and params used to bypass NASDAQ's anti-scraping mechanism in function __exchange2df
+headers = {
+    'authority': 'api.nasdaq.com',
+    'accept': 'application/json, text/plain, */*',
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36',
+    'origin': 'https://www.nasdaq.com',
+    'sec-fetch-site': 'same-site',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-dest': 'empty',
+    'referer': 'https://www.nasdaq.com/',
+    'accept-language': 'en-US,en;q=0.9',
 }
+
+def params(exchange):
+    return (
+        ('letter', '0'),
+        ('exchange', exchange),
+        ('download', 'true'),
+    )
+
+def params_region(region):
+    return (
+        ('letter', '0'),
+        ('region', region),
+        ('download', 'true'),
+    )
+
+# I know it's weird to have Sectors as constants, yet the Regions as enums, but
+# it makes the most sense to me
+class Region(Enum):
+    AFRICA = 'AFRICA'
+    EUROPE = 'EUROPE'
+    ASIA = 'ASIA'
+    AUSTRALIA_SOUTH_PACIFIC = 'AUSTRALIA+AND+SOUTH+PACIFIC'
+    CARIBBEAN = 'CARIBBEAN'
+    SOUTH_AMERICA = 'SOUTH+AMERICA'
+    MIDDLE_EAST = 'MIDDLE+EAST'
+    NORTH_AMERICA = 'NORTH+AMERICA'
+
+class SectorConstants:
+    NON_DURABLE_GOODS = 'Consumer Non-Durables'
+    CAPITAL_GOODS = 'Capital Goods'
+    HEALTH_CARE = 'Health Care'
+    ENERGY = 'Energy'
+    TECH = 'Technology'
+    BASICS = 'Basic Industries'
+    FINANCE = 'Finance'
+    SERVICES = 'Consumer Services'
+    UTILITIES = 'Public Utilities'
+    DURABLE_GOODS = 'Consumer Durables'
+    TRANSPORT = 'Transportation'
+
+
+# get tickers from chosen exchanges (default all) as a list
+def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):
+    tickers_list = []
+    if NYSE:
+        tickers_list.extend(__exchange2list('nyse'))
+    if NASDAQ:
+        tickers_list.extend(__exchange2list('nasdaq'))
+    if AMEX:
+        tickers_list.extend(__exchange2list('amex'))
+    return tickers_list
+
+
+def get_tickers_filtered(mktcap_min=None, mktcap_max=None, sectors=None):
+    tickers_list = []
+    for exchange in _EXCHANGE_LIST:
+        tickers_list.extend(__exchange2list_filtered(exchange, mktcap_min=mktcap_min, mktcap_max=mktcap_max, sectors=sectors))
+    return tickers_list
+
+
+def get_biggest_n_tickers(top_n, sectors=None):
+    df = pd.DataFrame()
+    for exchange in _EXCHANGE_LIST:
+        temp = __exchange2df(exchange)
+        df = pd.concat([df, temp])
+        
+    df = df.dropna(subset={'marketCap'})
+    df = df[~df['symbol'].str.contains("\.|\^")]
+
+    if sectors is not None:
+        if isinstance(sectors, str):
+            sectors = [sectors]
+        if not _SECTORS_LIST.issuperset(set(sectors)):
+            raise ValueError('Some sectors included are invalid')
+        sector_filter = df['Sector'].apply(lambda x: x in sectors)
+        df = df[sector_filter]
+
+    def cust_filter(mkt_cap):
+        if 'M' in mkt_cap:
+            return float(mkt_cap[1:-1])
+        elif 'B' in mkt_cap:
+            return float(mkt_cap[1:-1]) * 1000
+        else:
+            return float(mkt_cap[1:]) / 1e6
+    df['marketCap'] = df['marketCap'].apply(cust_filter)
+
+    df = df.sort_values('marketCap', ascending=False)
+    if top_n > len(df):
+        raise ValueError('Not enough companies, please specify a smaller top_n')
+
+    return df.iloc[:top_n]['symbol'].tolist()
+
+
+def get_tickers_by_region(region):
+    if region in Region:
+        response = requests.get('https://old.nasdaq.com/screening/companies-by-name.aspx', headers=headers,
+                                params=params_region(region))
+        data = io.StringIO(response.text)
+        df = pd.read_csv(data, sep=",")
+        return __exchange2list(df)
+    else:
+        raise ValueError('Please enter a valid region (use a Region.REGION as the argument, e.g. Region.AFRICA)')
+
+def __exchange2df(exchange):
+    r = requests.get('https://api.nasdaq.com/api/screener/stocks', headers=headers, params=params(exchange))
+    data = r.json()['data']
+    df = pd.DataFrame(data['rows'], columns=data['headers'])
+    return df
+
+def __exchange2list(exchange):
+    df = __exchange2df(exchange)
+    # removes weird tickers
+    df_filtered = df[~df['symbol'].str.contains("\.|\^")]
+    return df_filtered['symbol'].tolist()
+
+# market caps are in millions
+def __exchange2list_filtered(exchange, mktcap_min=None, mktcap_max=None, sectors=None):
+    df = __exchange2df(exchange)
+    df = df.dropna(subset={'marketCap'})
+    df = df[~df['symbol'].str.contains("\.|\^")]
+
+    if sectors is not None:
+        if isinstance(sectors, str):
+            sectors = [sectors]
+        if not _SECTORS_LIST.issuperset(set(sectors)):
+            raise ValueError('Some sectors included are invalid')
+        sector_filter = df['sector'].apply(lambda x: x in sectors)
+        df = df[sector_filter]
+
+    def cust_filter(mkt_cap):
+        if 'M' in mkt_cap:
+            return float(mkt_cap[1:-1])
+        elif 'B' in mkt_cap:
+            return float(mkt_cap[1:-1]) * 1000
+        elif mkt_cap == '':
+            return 0.0
+        else:
+            return float(mkt_cap[1:]) / 1e6
+    df['marketCap'] = df['marketCap'].apply(cust_filter)
+    if mktcap_min is not None:
+        df = df[df['marketCap'] > mktcap_min]
+    if mktcap_max is not None:
+        df = df[df['marketCap'] < mktcap_max]
+    return df['symbol'].tolist()
+
+
+# save the tickers to a CSV
+def save_tickers(NYSE=True, NASDAQ=True, AMEX=True, filename='tickers.csv'):
+    tickers2save = get_tickers(NYSE, NASDAQ, AMEX)
+    df = pd.DataFrame(tickers2save)
+    df.to_csv(filename, header=False, index=False)
+
+def save_tickers_by_region(region, filename='tickers_by_region.csv'):
+    tickers2save = get_tickers_by_region(region)
+    df = pd.DataFrame(tickers2save)
+    df.to_csv(filename, header=False, index=False)
+
+
+if __name__ == '__main__':
+
+    # tickers of all exchanges
+    tickers = get_tickers()
+    print(tickers[:5])
+
+    # tickers from NYSE and NASDAQ only
+    tickers = get_tickers(AMEX=False)
+
+    # default filename is tickers.csv, to specify, add argument filename='yourfilename.csv'
+    save_tickers()
+
+    # save tickers from NYSE and AMEX only
+    save_tickers(NASDAQ=False)
+
+    # get tickers from Asia
+    tickers_asia = get_tickers_by_region(Region.ASIA)
+    print(tickers_asia[:5])
+
+    # save tickers from Europe
+    save_tickers_by_region(Region.EUROPE, filename='EU_tickers.csv')
+
+    # get tickers filtered by market cap (in millions)
+    filtered_tickers = get_tickers_filtered(mktcap_min=500, mktcap_max=2000)
+    print(filtered_tickers[:5])
+
+    # not setting max will get stocks with $2000 million market cap and up.
+    filtered_tickers = get_tickers_filtered(mktcap_min=2000)
+    print(filtered_tickers[:5])
+
+    # get tickers filtered by sector
+    filtered_by_sector = get_tickers_filtered(mktcap_min=200e3, sectors=SectorConstants.FINANCE)
+    print(filtered_by_sector[:5])
+
+    # get tickers of 5 largest companies by market cap (specify sectors=SECTOR)
+    top_5 = get_biggest_n_tickers(5)
+    print(top_5)
