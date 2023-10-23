@@ -13,6 +13,10 @@ import ticker_fetcher
 # Function to download stock data using yfinance
 def download_stock_data(selected_tickers, period, interval):
     try:
+        if len(selected_tickers) == 1:
+            # If there's only one ticker, convert it to a string
+            selected_tickers = selected_tickers[0]
+
         data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
