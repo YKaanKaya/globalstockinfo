@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
+import ticker_fetcher
 
 # Function to download stock data using yfinance
 def download_stock_data(tickers, period, interval):
@@ -225,8 +226,18 @@ st.title("Stock and ESG Data Viewer")
 # Sidebar controls for user input
 st.sidebar.header("Select Options")
 
-# Accept multiple tickers from the user
-tickers = st.sidebar.multiselect("Choose Tickers", ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT'], default=['AAPL', 'TSLA'])
+# UI for selecting exchanges
+nyse = st.sidebar.checkbox("NYSE", value=True)
+nasdaq = st.sidebar.checkbox("NASDAQ", value=True)
+amex = st.sidebar.checkbox("AMEX", value=True)
+
+# Fetching tickers based on user's selection of exchanges
+tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
+
+# Accept multiple tickers from the user using the fetched tickers list
+selected_tickers = st.sidebar.multiselect("Choose Tickers", tickers_list, default=['AAPL', 'TSLA'])
+
+st.write(f"You selected: {', '.join(selected_tickers)}")
 
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
