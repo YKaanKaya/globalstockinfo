@@ -296,6 +296,10 @@ if show_esg:
         display_risk_levels(selected_tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
+
+            # Display time series chart for the selected symbols over the entire period
+            display_time_series_chart(processed_data, selected_tickers, data.index[0].date(), data.index[-1].date())
+
 # Create a button to fetch data
 fetch_data_button = st.sidebar.button("Fetch Data")
 
@@ -310,8 +314,6 @@ if fetch_data_button:
             st.write("### Stock Data")
             st.write(processed_data)
 
-            # Display time series chart for the selected symbols over the entire period
-            display_time_series_chart(processed_data, selected_tickers, data.index[0].date(), data.index[-1].date())
 # A bit more about the app
 st.markdown("""
 **About the App:**
