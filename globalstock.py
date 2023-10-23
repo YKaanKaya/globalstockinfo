@@ -195,15 +195,15 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
             st.plotly_chart(fig)
     except Exception as e:
         st.error(f"An error occurred: {e}")
-
-
 def main():
     st.title("Stock Data Downloader & ESG Analyzer 📈")
 
     st.sidebar.header("Settings")
 
     # Ticker input
-    tickers = st.sidebar.text_input("Enter Stock Tickers:", "AAPL").upper().split()
+    default_tickers = "AAPL"
+    tickers_input = st.sidebar.text_input("Enter Stock Tickers:", default_tickers).upper()
+    tickers = tickers_input.split()
     st.sidebar.text("Example: AAPL GOOGL MSFT")
 
     # Period selection
@@ -216,14 +216,15 @@ def main():
 
     # Additional data features
     st.sidebar.subheader("Additional Data Features")
-    add_cumulative_return = st.sidebar.checkbox('Add Cumulative Return')
-    add_moving_averages = st.sidebar.checkbox('Add Moving Averages')
-    add_esg_scores = st.sidebar.checkbox('Add ESG Scores and Risk Levels')
+    add_cumulative_return = st.sidebar.checkbox('Add Cumulative Return', value=True)
+    add_moving_averages = st.sidebar.checkbox('Add Moving Averages', value=True)
+    add_esg_scores = st.sidebar.checkbox('Add ESG Scores and Risk Levels', value=True)
 
     st.sidebar.text("Note: Data is fetched from Yahoo Finance.")
     st.sidebar.text("© 2023 Your Company Name")
 
-    if st.sidebar.button("Download Data"):
+    # Fetch and display data upon any change in settings or upon hitting "Enter" after entering a ticker
+    if tickers_input != default_tickers or st.sidebar.checkbox("Refresh Data"):
         with st.spinner("Fetching data..."):
             try:
                 data_frames = []
@@ -237,23 +238,22 @@ def main():
                     if add_moving_averages:
                         data = compute_moving_averages(data)
 
+                    data["Symbol"] = ticker
                     data_frames.append(data)
 
                     if add_esg_scores:
                         esg_data = get_esg_data_with_headers_and_error_handling(ticker)
                         esg_data_list.append(esg_data)
 
-                if len(data_frames) > 1:
-                    final_data = pd.concat(data_frames, keys=tickers, names=['Ticker', 'Date'])
-                else:
-                    final_data = data_frames[0]
-
-                st.dataframe(final_data.style.highlight_max(axis=0))
+                final_data = pd.concat(data_frames)
 
                 if add_esg_scores and esg_data_list:
                     display_esg_data_table(tickers, esg_data_list)
                     esg_scores = [data["Total ESG risk score"] for data in esg_data_list if data["Total ESG risk score"] is not None]
                     display_risk_levels(tickers, esg_scores)
+
+                # Display Time Series Chart
+                display_time_series_chart(final_data, tickers, final_data["Date"].min(), final_data["Date"].max())
 
                 # Allow user to download the data
                 csv = final_data.to_csv(index=True)
