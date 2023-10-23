@@ -120,78 +120,7 @@ def display_risk_levels(tickers, esg_scores):
 
     st.plotly_chart(fig)
 
-def display_time_series_chart(symbol_data, selected_symbols, start_date, end_date):
-    try:
-        # Ensure Datetime column is a datetime dtype
-        symbol_data['Datetime'] = pd.to_datetime(symbol_data.index)
-        filtered_data = symbol_data[
-            (symbol_data['Symbol'].isin(selected_symbols)) &
-            (symbol_data['Datetime'].dt.date >= start_date) &
-            (symbol_data['Datetime'].dt.date <= end_date)
-        ]
 
-        if filtered_data.empty:
-            st.error("No data available for the selected symbols in the selected date range.")
-        else:
-            selected_tickers = ', '.join(selected_symbols)
-            fig = go.Figure()
-            light_colors = ['#FF5733', '#FFBD33', '#33FF57', '#339CFF', '#FF33D1']
-            color_mapping = {symbol: light_colors[i % len(light_colors)] for i, symbol in enumerate(selected_symbols)}
-
-            for symbol in selected_symbols:
-                symbol_data = filtered_data[filtered_data['Symbol'] == symbol]
-                if symbol not in fig.data:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=symbol_data['Datetime'],
-                            y=symbol_data['High'],
-                            mode='lines',
-                            name=symbol,
-                            line=dict(color=color_mapping[symbol], width=2)
-                        )
-                    )
-
-                min_return_row = symbol_data.loc[symbol_data['Low'].idxmin()]
-                max_return_row = symbol_data.loc[symbol_data['High'].idxmax()]
-
-                fig.add_annotation(
-                    x=min_return_row['Datetime'],
-                    y=min_return_row['Low'],
-                    text=f"Lowest: {min_return_row['Low']:.2f}",
-                    showarrow=True,
-                    arrowhead=2,
-                    ax=0,
-                    ay=40,
-                    bgcolor='white',
-                    font=dict(color=color_mapping[symbol])
-                )
-                fig.add_annotation(
-                    x=max_return_row['Datetime'],
-                    y=max_return_row['High'],
-                    text=f"Highest: {max_return_row['High']:.2f}",
-                    showarrow=True,
-                    arrowhead=2,
-                    ax=0,
-                    ay=-40,
-                    bgcolor='white',
-                    font=dict(color=color_mapping[symbol])
-                )
-
-            fig.update_layout(
-                title=f"Time Series Data for {selected_tickers}",
-                xaxis_title="Date",
-                yaxis_title="Value",
-                showlegend=True,
-                plot_bgcolor='#2e2e2e',
-                paper_bgcolor='#2e2e2e',
-                font=dict(color='white'),
-                legend_title_text='Symbols',
-                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
-            )
-
-            st.plotly_chart(fig)
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
 
 def main():
     st.title("Financial Data Application")
@@ -203,7 +132,6 @@ def main():
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
-    display_time_series_data = st.sidebar.checkbox("Display Time Series Data", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
 
