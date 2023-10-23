@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
-
 def download_stock_data(tickers=["AAPL", "TSLA"], period="1d", interval="1m"):
     all_data = {}
     for ticker in tickers:
@@ -32,14 +31,19 @@ def process_data(Portfolio):
 def main():
     st.title("Stock Data Downloader")
 
+    # Default values
+    default_tickers = ["AAPL", "TSLA"]
+    default_period = "1d"
+    default_interval = "1m"
+
     # 1. User Input
-    tickers = st.text_input("Enter the stock tickers (comma-separated)", "AAPL,TSLA").split(',')
+    tickers = st.text_input("Enter the stock tickers (comma-separated)", value=",".join(default_tickers)).split(',')
 
     valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
-    period = st.selectbox("Select Data Period", valid_periods, index=0)
+    period = st.selectbox("Select Data Period", valid_periods, index=valid_periods.index(default_period))
 
     valid_intervals = ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]
-    interval = st.selectbox("Select Data Interval", valid_intervals, index=0)
+    interval = st.selectbox("Select Data Interval", valid_intervals, index=valid_intervals.index(default_interval))
 
     # 2. Download, Process and Display Data
     with st.spinner("Fetching Data..."):
