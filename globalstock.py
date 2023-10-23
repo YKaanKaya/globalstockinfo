@@ -12,12 +12,16 @@ import ticker_fetcher
 
 # Function to download stock data using yfinance
 
-def download_stock_data(Stocks):
+def download_stock_data(selected_tickers, period, interval):
     try:
+        if isinstance(selected_tickers, str):
+            # If there's only one ticker, wrap it in a list
+            selected_tickers = [selected_tickers]
+
         data = yf.download(selected_tickers, period=period, interval=interval)
         return data
     except Exception as e:
-        st.error(f"Error downloading stock data: {e}")
+        st.error(f"Error downloading data: {e}")
         return None
 
 # Function to process the downloaded data and compute cumulative return and moving average
@@ -292,7 +296,22 @@ if show_esg:
         display_risk_levels(selected_tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
+# Create a button to fetch data
+fetch_data_button = st.sidebar.button("Fetch Data")
 
+# Check if the button is clicked
+if fetch_data_button:
+    # Download and process the data based on user selection
+    data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
+
+    if data is not None:
+        processed_data = process_data(data, period)
+        if processed_data is not None:
+            st.write("### Stock Data")
+            st.write(processed_data)
+
+            # Display time series chart for the selected symbols over the entire period
+            display_time_series_chart(processed_data, selected_tickers, data.index[0].date(), data.index[-1].date())
 # A bit more about the app
 st.markdown("""
 **About the App:**
