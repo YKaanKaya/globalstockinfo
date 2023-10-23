@@ -12,7 +12,7 @@ import base64
 # Function to download stock data using yfinance
 def download_stock_data(tickers, period, interval):
     try:
-        data = yf.download(tickers, period=period, interval=interval)
+        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
