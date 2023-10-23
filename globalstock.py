@@ -8,11 +8,12 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
+import ticker_fetcher
 
 # Function to download stock data using yfinance
-def download_stock_data(tickers, period, interval):
+def download_stock_data(selected_tickers, period, interval):
     try:
-        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
+        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
@@ -23,6 +24,16 @@ def process_data(data, period):
     try:
         # Rearranging the DataFrame
         portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
+
+        if 'Close' not in portfolio.columns:
+            st.error("Error processing data: 'Close' column not found in the data.")
+            return None
+
+        # Check if there is only one unique ticker
+        unique_tickers = portfolio['Symbol'].unique()
+        if len(unique_tickers) == 1:
+            st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
+            return portfolio
 
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
@@ -37,6 +48,8 @@ def process_data(data, period):
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
+        
+# Scrape the ESG data
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
@@ -225,8 +238,28 @@ st.title("Stock and ESG Data Viewer")
 # Sidebar controls for user input
 st.sidebar.header("Select Options")
 
-# Accept multiple tickers from the user
-tickers = st.sidebar.multiselect("Choose Tickers", ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT'], default=['AAPL', 'TSLA'])
+# UI for selecting exchanges
+nyse = st.sidebar.checkbox("NYSE", value=True)
+nasdaq = st.sidebar.checkbox("NASDAQ", value=True)
+amex = st.sidebar.checkbox("AMEX", value=True)
+
+# Fetching tickers based on user's selection of exchanges
+tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
+
+# Allow the user to input a custom ticker
+custom_ticker = st.sidebar.text_input("Input a custom ticker (optional)").strip().upper()  # Convert to uppercase and remove leading/trailing spaces
+
+# Create a multiselect widget that combines predefined tickers and custom tickers
+selected_tickers = st.sidebar.multiselect(
+    "Choose Tickers",
+    options=tickers_list,
+    default=['AAPL', 'TSLA'],  # Default predefined tickers
+    key="selected_tickers"  # Provide a unique key to differentiate this widget
+)
+
+# Append the custom ticker if it's provided and not already in the list
+if custom_ticker and custom_ticker not in selected_tickers:
+    selected_tickers.append(custom_ticker)
 
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
@@ -238,7 +271,7 @@ interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
-data = download_stock_data(tickers, period, interval)
+data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
@@ -246,23 +279,18 @@ if data is not None:
         st.write(processed_data)
 
         # Display time series chart for the selected symbols over the entire period
-        display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
+        display_time_series_chart(processed_data, selected_tickers, data.index[0].date(), data.index[-1].date())
 
 # Display ESG data
 if show_esg:
     st.write("### ESG Data")
-    esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in tickers]
+    esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in selected_tickers]
     if all(data is not None for data in esg_data_list):
-        display_esg_data_table(tickers, esg_data_list)
+        display_esg_data_table(selected_tickers, esg_data_list)
         esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
-        display_risk_levels(tickers, esg_scores)
+        display_risk_levels(selected_tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
-
-# User-friendly instructions for downloading CSV
-st.markdown("To download the displayed data as CSV:")
-st.markdown("1. Click on the menu (three horizontal dots) on the top right of the data table.")
-st.markdown("2. Click on 'Download CSV'.")
 
 # A bit more about the app
 st.markdown("""
