@@ -31,6 +31,10 @@ def process_data(data, period):
             st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
             return portfolio
 
+        if 'Close' not in portfolio.columns:
+            st.error("Error processing data: 'Close' column not found in the data.")
+            return None
+
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
