@@ -229,10 +229,10 @@ st.sidebar.header("Select Options")
 tickers = st.sidebar.multiselect("Choose Tickers", ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT'], default=['AAPL', 'TSLA'])
 
 # Period selection
-period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=2)
+period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
 
 # Interval selection
-interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=8)
+interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0)
 
 # If user wants to see ESG data
 show_esg = st.sidebar.checkbox("Show ESG Data")
@@ -242,9 +242,12 @@ data = download_stock_data(tickers, period, interval)
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
-        st.write("### Stock Data")
-        st.write(processed_data)
-
+        if not processed_data.empty:
+            st.write("### Stock Data")
+            st.write(processed_data)
+        else:
+            st.warning("No data available for the selected combination of period and interval. Please try a different combination.")
+            
         # Display time series chart for the selected symbols over the entire period
         display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
 
