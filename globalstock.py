@@ -9,54 +9,65 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import base64
 
+# Function to download stock data using yfinance
 def download_stock_data(tickers, period, interval):
     try:
-        # Download data
-        data = yf.download(tickers, period=period, interval=interval, group_by="ticker")
+        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
         return None
 
-def process_data(Portfolio):
+# Function to process the downloaded data and compute cumulative return and moving average
+def process_data(data, period):
     try:
-        if "Symbol" not in Portfolio.columns:
-            Portfolio = Portfolio.stack(level=0).reset_index().rename(columns={"level_1": "Symbol"}).set_index("Datetime")
-        
-        # Calculate daily return
-        Portfolio['Daily Return'] = (Portfolio['Close'] - Portfolio['Open']) / Portfolio['Open']
-        
-        # Calculate cumulative return
-        Portfolio['Cumulative Return'] = (1 + Portfolio['Daily Return']).cumprod() - 1
-        
-        # Move 'Symbol' column to the front
-        cols = list(Portfolio.columns)
-        cols.insert(0, cols.pop(cols.index('Symbol')))
-        Portfolio = Portfolio[cols]
+        # Rearranging the DataFrame
+        portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
 
-        return Portfolio
+        # Calculating cumulative returns
+        portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
+
+        # Calculating moving average based on the chosen period
+        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
+
+        # Reordering the DataFrame columns
+        columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
+        return portfolio[columns_order]
+
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
 
-def main():
-    st.title("Stock Data Viewer")
+# Title for the Streamlit app
+st.title("Stock Data Downloader")
 
-    # 1. User Inputs
-    tickers = st.text_input("Enter Ticker(s) (comma-separated for multiple)", "AAPL, TSLA").split(',')
-    period = st.selectbox("Select Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
-    interval = st.selectbox("Select Interval", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
+# Sidebar controls for user input
+st.sidebar.header("Select Options")
 
-    # 2. Download, Process and Display Data
-    with st.spinner("Fetching Data..."):
-        raw_data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
-        processed_data = process_data(raw_data)
-        
-        # Calculate Moving Average
-        period_mapping = {"1d": 1, "5d": 5, "1mo": 21, "3mo": 63, "6mo": 126, "1y": 252}
-        processed_data[f"Moving Avg ({period})"] = processed_data.groupby('Symbol')['Close'].transform(lambda x: x.rolling(period_mapping.get(period, 1)).mean())
-        
+# Accept multiple tickers from the user
+tickers = st.sidebar.multiselect("Choose Tickers", ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT'], default=['AAPL', 'TSLA'])
+
+# Period selection
+period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=2)
+
+# Interval selection
+interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=8)
+
+# Downloading and processing the data based on user selection
+data = download_stock_data(tickers, period, interval)
+if data is not None:
+    processed_data = process_data(data, period)
+    if processed_data is not None:
+        # Display the processed data on the app
         st.write(processed_data)
 
-if __name__ == "__main__":
-    main()
+# User-friendly instructions for downloading CSV
+st.markdown("To download the displayed data as CSV:")
+st.markdown("1. Click on the menu (three horizontal dots) on the top right of the data table.")
+st.markdown("2. Click on 'Download CSV'.")
+
+# A bit more about the app
+st.markdown("""
+**About the App:**
+This app lets you select specific stock tickers, a desired period, and interval to fetch historical stock data using the yfinance library. It then computes the cumulative return and a moving average for the stocks and displays the results in a table. You can also download the table's contents as a CSV file.
+""")
