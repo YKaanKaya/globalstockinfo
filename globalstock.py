@@ -36,7 +36,7 @@ def process_data(data, period):
             return portfolio
 
         # Calculating cumulative returns
-        portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
+         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
         # Calculating moving average based on the chosen period
          portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
