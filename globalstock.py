@@ -10,7 +10,6 @@ import plotly.express as px
 import base64
 
 # Function to download stock data using yfinance
-@st.cache
 def download_stock_data(tickers, period, interval):
     try:
         data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
@@ -20,7 +19,6 @@ def download_stock_data(tickers, period, interval):
         return None
 
 # Function to process the downloaded data and compute cumulative return and moving average
-@st.cache
 def process_data(data, period):
     try:
         # Rearranging the DataFrame
@@ -30,7 +28,7 @@ def process_data(data, period):
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
         # Calculating moving average based on the chosen period
-        portfolio[f"Moving Average-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
+        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
 
         # Reordering the DataFrame columns
         columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
@@ -39,8 +37,6 @@ def process_data(data, period):
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
-        
-# Scrape esg data
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
@@ -164,52 +160,26 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
         else:
             selected_tickers = ', '.join(selected_symbols)  # Join selected tickers with commas
             
+            # Create a Plotly line chart
             fig = go.Figure()  # Create a new Plotly figure
-
-            # Light colors for visualization
-            light_colors = ['#FF5733', '#FFBD33', '#33FF57', '#339CFF', '#FF33D1']
+            
+            # Customize the chart with explicit light colors
+            light_colors = ['#FF5733', '#FFBD33', '#33FF57', '#339CFF', '#FF33D1']  # Light colors
             color_mapping = {symbol: light_colors[i % len(light_colors)] for i, symbol in enumerate(selected_symbols)}
-
+            
             for symbol in selected_symbols:
                 symbol_data = filtered_data[filtered_data['Symbol'] == symbol]
-                
-                # Calculate 50-day and 200-day moving averages
-                symbol_data = symbol_data.copy()  # Avoid setting a copy warning
-                symbol_data['50-day SMA'] = symbol_data['High'].rolling(window=50).mean()
-                symbol_data['200-day SMA'] = symbol_data['High'].rolling(window=200).mean()
-
-                # Plot actual data
-                fig.add_trace(
-                    go.Scatter(
-                        x=symbol_data['Datetime'],
-                        y=symbol_data['High'],
-                        mode='lines',
-                        name=f"{symbol} Price",
-                        line=dict(color=color_mapping[symbol], width=2)
+                # Add trace only once for each unique symbol
+                if symbol not in fig.data:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=symbol_data['Datetime'],
+                            y=symbol_data['High'],
+                            mode='lines',
+                            name=symbol,
+                            line=dict(color=color_mapping[symbol], width=2)
+                        )
                     )
-                )
-
-                # Plot 50-day moving average
-                fig.add_trace(
-                    go.Scatter(
-                        x=symbol_data['Datetime'],
-                        y=symbol_data['50-day SMA'],
-                        mode='lines',
-                        name=f"{symbol} 50-day SMA",
-                        line=dict(color=color_mapping[symbol], width=1, dash='dot')
-                    )
-                )
-
-                # Plot 200-day moving average
-                fig.add_trace(
-                    go.Scatter(
-                        x=symbol_data['Datetime'],
-                        y=symbol_data['200-day SMA'],
-                        mode='lines',
-                        name=f"{symbol} 200-day SMA",
-                        line=dict(color=color_mapping[symbol], width=1, dash='dash')
-                    )
-                )
                 
                 # Add annotations for highest and lowest trading prices
                 min_return_row = symbol_data.loc[symbol_data['Low'].idxmin()]  # Get the row with the minimum 'Low' value
@@ -234,24 +204,18 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
                     ax=0,
                     ay=40
                 )
-
+            
+            # Set chart title
             fig.update_layout(
-                title=f"Time Series Chart for {selected_tickers} Tickers with Moving Averages",
+                title=f"Time Series Chart for {selected_tickers} Tickers",
                 xaxis_title="Date",
-                yaxis_title="Price"
+                yaxis_title="Highest Price"
             )
             
+            # Show the chart
             st.plotly_chart(fig)
     except Exception as e:
         st.error(f"An error occurred: {e}")
-        
-def get_table_download_link(df, text="Download CSV"):
-    """
-    Function to create a downloadable link for a dataframe.
-    """
-    csv = df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()
-    return f'<a href="data:file/csv;base64,{b64}" download="data.csv">{text}</a>'
         
 # ------ Main App ------
 
@@ -274,34 +238,31 @@ interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
-with st.spinner("Fetching and processing stock data..."):
-    data = download_stock_data(tickers, period, interval)
-    if data is not None:
-        processed_data = process_data(data, period)
-        if processed_data is not None:
-            st.write("### Stock Data")
-            st.write(processed_data)
+data = download_stock_data(tickers, period, interval)
+if data is not None:
+    processed_data = process_data(data, period)
+    if processed_data is not None:
+        st.write("### Stock Data")
+        st.write(processed_data)
 
-            # Display time series chart for the selected symbols over the entire period
-            display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
+        # Display time series chart for the selected symbols over the entire period
+        display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
 
 # Display ESG data
 if show_esg:
     st.write("### ESG Data")
-    with st.spinner("Fetching ESG data..."):
-        esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in tickers]
-    failed_tickers = [ticker for i, ticker in enumerate(tickers) if esg_data_list[i] is None]
-    
-    if failed_tickers:
-        st.error(f"Failed to fetch ESG data for: {', '.join(failed_tickers)}")
-    
+    esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in tickers]
     if all(data is not None for data in esg_data_list):
         display_esg_data_table(tickers, esg_data_list)
         esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
         display_risk_levels(tickers, esg_scores)
+    else:
+        st.error("Failed to fetch ESG data for one or more tickers.")
 
-st.markdown(get_table_download_link(processed_data), unsafe_allow_html=True)
-
+# User-friendly instructions for downloading CSV
+st.markdown("To download the displayed data as CSV:")
+st.markdown("1. Click on the menu (three horizontal dots) on the top right of the data table.")
+st.markdown("2. Click on 'Download CSV'.")
 
 # A bit more about the app
 st.markdown("""
