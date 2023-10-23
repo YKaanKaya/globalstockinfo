@@ -11,9 +11,9 @@ import base64
 import ticker_fetcher
 
 # Function to download stock data using yfinance
-def download_stock_data(tickers, period, interval):
+def download_stock_data(selected_tickers, period, interval):
     try:
-        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
+        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
@@ -234,8 +234,20 @@ amex = st.sidebar.checkbox("AMEX", value=True)
 # Fetching tickers based on user's selection of exchanges
 tickers_list = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
 
-# Accept multiple tickers from the user using the fetched tickers list
-tickers = st.sidebar.multiselect("Choose Tickers", tickers_list, default=['AAPL', 'TSLA'])
+# Allow the user to input a custom ticker
+custom_ticker = st.sidebar.text_input("Input a custom ticker (optional)").strip().upper()  # Convert to uppercase and remove leading/trailing spaces
+
+# Create a multiselect widget that combines predefined tickers and custom tickers
+selected_tickers = st.sidebar.multiselect(
+    "Choose Tickers",
+    options=tickers_list,
+    default=['AAPL', 'TSLA'],  # Default predefined tickers
+    key="selected_tickers"  # Provide a unique key to differentiate this widget
+)
+
+# Append the custom ticker if it's provided and not already in the list
+if custom_ticker and custom_ticker not in selected_tickers:
+    selected_tickers.append(custom_ticker)
 
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
@@ -247,7 +259,7 @@ interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
-data = download_stock_data(tickers, period, interval)
+data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
