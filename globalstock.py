@@ -10,14 +10,22 @@ import plotly.express as px
 import base64
 
 # Function to download stock data using yfinance
-def download_stock_data(tickers, period, interval):
-    try:
-        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
-        return data
-    except Exception as e:
-        st.error(f"Error downloading data: {e}")
-        return None
 
+def download_stock_data(Stocks, period='1y', interval='1h'):
+    try:
+        Portfolio = yf.download(Stocks, period=period, interval=interval)
+        
+        # Check for 'High' and 'Low' columns. If missing, fetch daily data as a fallback.
+        if 'High' not in Portfolio.columns or 'Low' not in Portfolio.columns:
+            st.warning("Fetching daily data as 'High' or 'Low' column is missing.")
+            Portfolio = yf.download(Stocks, period=period, interval='1d')
+
+        return Portfolio
+
+    except Exception as e:
+        st.error(f"Error downloading stock data: {e}")
+        return None
+        
 # Function to process the downloaded data and compute cumulative return and moving average
 def process_data(data, period):
     try:
@@ -219,6 +227,20 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
         
 # ------ Main App ------
 
+st.title("Stock Portfolio Analysis")
+st.write("Analyze your stock portfolio's historical data.")
+
+# User input for stock tickers
+tickers_input = st.text_input("Enter your stock tickers separated by a comma:", value="AAPL, MSFT").upper()
+tickers = [ticker.strip() for ticker in tickers_input.split(",")]
+
+# Call the function
+data = download_stock_data(tickers)
+
+# Display data
+if data is not None:
+    st.write(data.head())
+    
 # Title for the Streamlit app
 st.title("Stock and ESG Data Viewer")
 
