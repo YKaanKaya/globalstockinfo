@@ -10,22 +10,14 @@ import plotly.express as px
 import base64
 
 # Function to download stock data using yfinance
-
-def download_stock_data(Stocks, period='1y', interval='1h'):
+def download_stock_data(tickers, period, interval):
     try:
-        Portfolio = yf.download(Stocks, period=period, interval=interval)
-        
-        # Check for 'High' and 'Low' columns. If missing, fetch daily data as a fallback.
-        if 'High' not in Portfolio.columns or 'Low' not in Portfolio.columns:
-            st.warning("Fetching daily data as 'High' or 'Low' column is missing.")
-            Portfolio = yf.download(Stocks, period=period, interval='1d')
-
-        return Portfolio
-
+        data = yf.download(tickers, period=period, interval=interval, group_by='ticker')
+        return data
     except Exception as e:
-        st.error(f"Error downloading stock data: {e}")
+        st.error(f"Error downloading data: {e}")
         return None
-        
+
 # Function to process the downloaded data and compute cumulative return and moving average
 def process_data(data, period):
     try:
@@ -227,20 +219,6 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
         
 # ------ Main App ------
 
-st.title("Stock Portfolio Analysis")
-st.write("Analyze your stock portfolio's historical data.")
-
-# User input for stock tickers
-tickers_input = st.text_input("Enter your stock tickers separated by a comma:", value="AAPL, MSFT").upper()
-tickers = [ticker.strip() for ticker in tickers_input.split(",")]
-
-# Call the function
-data = download_stock_data(tickers)
-
-# Display data
-if data is not None:
-    st.write(data.head())
-    
 # Title for the Streamlit app
 st.title("Stock and ESG Data Viewer")
 
@@ -251,10 +229,10 @@ st.sidebar.header("Select Options")
 tickers = st.sidebar.multiselect("Choose Tickers", ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT'], default=['AAPL', 'TSLA'])
 
 # Period selection
-period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
+period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=2)
 
 # Interval selection
-interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0)
+interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=8)
 
 # If user wants to see ESG data
 show_esg = st.sidebar.checkbox("Show ESG Data")
@@ -264,12 +242,9 @@ data = download_stock_data(tickers, period, interval)
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
-        if not processed_data.empty:
-            st.write("### Stock Data")
-            st.write(processed_data)
-        else:
-            st.warning("No data available for the selected combination of period and interval. Please try a different combination.")
-            
+        st.write("### Stock Data")
+        st.write(processed_data)
+
         # Display time series chart for the selected symbols over the entire period
         display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
 
