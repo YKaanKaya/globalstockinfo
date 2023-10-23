@@ -12,23 +12,23 @@ import base64
 
 def download_stock_data(tickers=["AAPL"], period="1d", interval="1m"):
     all_data = []
+
     for ticker in tickers:
         stock_data = yf.download(ticker, period=period, interval=interval)
         stock_data['Ticker'] = ticker  # Add ticker column
         all_data.append(stock_data)
 
-    # Concatenate the list of dataframes and reset index for pivot
-    combined_data = pd.concat(all_data).reset_index()
-    # Pivot data to have date and ticker as columns
-    pivoted_data = combined_data.pivot(index='Date', columns='Ticker')
+    # Concatenate the list of dataframes
+    combined_data = pd.concat(all_data)
+    # Pivot data to have dates as index and tickers as columns
+    pivoted_data = combined_data.pivot_table(index=['Date'], columns='Ticker', values='Close')
     return pivoted_data
 
 def main():
     st.title("Stock Data Downloader")
 
     # 1. User Input
-    default_tickers = ["AAPL"]
-    tickers = st.multiselect("Enter the stock tickers", default=default_tickers)
+    tickers = st.text_input("Enter the stock tickers (comma-separated)", "AAPL").split(',')
 
     valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
     period = st.selectbox("Select Data Period", valid_periods, index=0)
@@ -39,7 +39,7 @@ def main():
     # 2. Download and Display Data
     if st.button("Fetch Data"):
         with st.spinner("Fetching Data..."):
-            data = download_stock_data(tickers, period, interval)
+            data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
             st.write(data)
 
         # 3. Option to Save
