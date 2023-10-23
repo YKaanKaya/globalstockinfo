@@ -196,7 +196,8 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
 def main():
     st.title("Financial Data Application")
 
-    tickers_input = st.sidebar.text_input("Enter the tickers (comma separated):", "AAPL, GOOGL")
+    default_tickers = ["AAPL", "GOOGL"]
+    tickers_input = st.sidebar.text_input("Enter the tickers (comma separated):", ', '.join(default_tickers))
     tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
@@ -205,9 +206,10 @@ def main():
     display_time_series_data = st.sidebar.checkbox("Display Time Series Data", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
+    if st.sidebar.checkbox("Refresh Data"):
+        pass
 
-    # Assuming default_tickers is defined somewhere before this, otherwise this will throw an error
-    if tickers_input != default_tickers or st.sidebar.checkbox("Refresh Data"):
+    if tickers_input != ', '.join(default_tickers) or st.sidebar.checkbox("Refresh Data"):
         with st.spinner("Fetching data..."):
             try:
                 data_frames = []
