@@ -25,8 +25,10 @@ def process_data(data, period):
         # Rearranging the DataFrame
         portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
 
-        if len(portfolio['Symbol'].unique()) == 1:
-            # If only one ticker is selected, return the original data without processing
+        unique_tickers = portfolio['Symbol'].unique()
+
+        if len(unique_tickers) == 1:
+            st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
             return portfolio
 
         # Calculating cumulative returns
@@ -42,7 +44,8 @@ def process_data(data, period):
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
-
+        
+# Scrape the ESG data
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
