@@ -17,7 +17,7 @@ def download_stock_data(selected_tickers, period, interval):
             # If there's only one ticker, convert it to a string
             selected_tickers = selected_tickers[0]
 
-        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
+        data = yf.download(selected_tickers, period=period, interval=interval, group_by='selected_ticker')
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
