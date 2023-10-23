@@ -25,15 +25,15 @@ def process_data(data, period):
         # Rearranging the DataFrame
         portfolio = data.stack(level=0).reset_index().rename(columns={"level_1": "Symbol", "Date": "Datetime"})
 
-        unique_tickers = portfolio['Symbol'].unique()
-
-        if len(unique_tickers) == 1:
-            st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
-            return portfolio
-
         if 'Close' not in portfolio.columns:
             st.error("Error processing data: 'Close' column not found in the data.")
             return None
+
+        # Check if there is only one unique ticker
+        unique_tickers = portfolio['Symbol'].unique()
+        if len(unique_tickers) == 1:
+            st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
+            return portfolio
 
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
@@ -291,11 +291,6 @@ if show_esg:
         display_risk_levels(selected_tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
-
-# User-friendly instructions for downloading CSV
-st.markdown("To download the displayed data as CSV:")
-st.markdown("1. Click on the menu (three horizontal dots) on the top right of the data table.")
-st.markdown("2. Click on 'Download CSV'.")
 
 # A bit more about the app
 st.markdown("""
