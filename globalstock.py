@@ -22,8 +22,13 @@ def process_data(Portfolio):
     try:
         if "Symbol" not in Portfolio.columns:
             Portfolio = Portfolio.stack(level=0).reset_index().rename(columns={"level_1": "Symbol"}).set_index("Datetime")
-            Portfolio['Return'] = (Portfolio['Close'] - Portfolio['Open']) / Portfolio['Open']
-
+        
+        # Calculate daily return
+        Portfolio['Daily Return'] = (Portfolio['Close'] - Portfolio['Open']) / Portfolio['Open']
+        
+        # Calculate cumulative return
+        Portfolio['Cumulative Return'] = (1 + Portfolio['Daily Return']).cumprod() - 1
+        
         # Move 'Symbol' column to the front
         cols = list(Portfolio.columns)
         cols.insert(0, cols.pop(cols.index('Symbol')))
@@ -46,6 +51,11 @@ def main():
     with st.spinner("Fetching Data..."):
         raw_data = download_stock_data([ticker.strip().upper() for ticker in tickers], period, interval)
         processed_data = process_data(raw_data)
+        
+        # Calculate Moving Average
+        period_mapping = {"1d": 1, "5d": 5, "1mo": 21, "3mo": 63, "6mo": 126, "1y": 252}
+        processed_data[f"Moving Avg ({period})"] = processed_data.groupby('Symbol')['Close'].transform(lambda x: x.rolling(period_mapping.get(period, 1)).mean())
+        
         st.write(processed_data)
 
 if __name__ == "__main__":
