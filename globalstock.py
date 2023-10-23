@@ -274,9 +274,9 @@ if show_esg:
     st.write("### ESG Data")
     esg_data_list = [get_esg_data_with_headers_and_error_handling(ticker) for ticker in selected_tickers]
     if all(data is not None for data in esg_data_list):
-        display_esg_data_table(tickers, esg_data_list)
+        display_esg_data_table(selected_tickers, esg_data_list)
         esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
-        display_risk_levels(tickers, esg_scores)
+        display_risk_levels(selected_tickers, esg_scores)
     else:
         st.error("Failed to fetch ESG data for one or more tickers.")
 
