@@ -19,7 +19,6 @@ def download_stock_data(selected_tickers, period, interval):
         st.error(f"Error downloading data: {e}")
         return None
 
-# Function to process the downloaded data and compute cumulative return and moving average
 def process_data(data, period):
     try:
         # Rearranging the DataFrame
@@ -35,11 +34,14 @@ def process_data(data, period):
             st.warning(f"Only one ticker selected: {unique_tickers[0]}. Cumulative return and moving average not calculated.")
             return portfolio
 
+        # Calculate the rolling window for moving average based on the chosen period
+        rolling_window = period_to_timedelta(period)
+
         # Calculating cumulative returns
         portfolio['Cumulative Return'] = (portfolio['Close'] - portfolio.groupby('Symbol')['Close'].transform('first')) / portfolio.groupby('Symbol')['Close'].transform('first')
 
-        # Calculating moving average based on the chosen period
-        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=int(period[:-1]), min_periods=1).mean())
+        # Calculating moving average
+        portfolio[f"MA-{period}"] = portfolio.groupby('Symbol')['Close'].transform(lambda x: x.rolling(window=rolling_window, min_periods=1).mean())
 
         # Reordering the DataFrame columns
         columns_order = ["Symbol", "Datetime", "Open", "Close", "Cumulative Return", f"MA-{period}"]
@@ -48,6 +50,18 @@ def process_data(data, period):
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
+        
+#convert selected 'Xmo' as the period.
+def period_to_timedelta(period):
+    if period.endswith('d'):
+        days = int(period[:-1])
+        return timedelta(days=days)
+    elif period.endswith('mo'):
+        months = int(period[:-2])
+        # Assuming 30 days per month, you can adjust as needed
+        return timedelta(days=months * 30)
+    else:
+        raise ValueError(f"Unsupported period: {period}")
         
 # Scrape the ESG data
 @st.cache
