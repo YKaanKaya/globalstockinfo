@@ -20,15 +20,16 @@ def download_stock_data(tickers, period, interval):
 
 def process_data(Portfolio):
     try:
-        portfolio = Portfolio.copy().reset_index().rename(index=str, columns={"index": "Datetime"})
-        portfolio['Return'] = (portfolio['Close'] - portfolio['Open']) / portfolio['Open']
+        if "Symbol" not in Portfolio.columns:
+            Portfolio = Portfolio.stack(level=0).reset_index().rename(columns={"level_1": "Symbol"}).set_index("Datetime")
+            Portfolio['Return'] = (Portfolio['Close'] - Portfolio['Open']) / Portfolio['Open']
 
         # Move 'Symbol' column to the front
-        cols = list(portfolio.columns)
+        cols = list(Portfolio.columns)
         cols.insert(0, cols.pop(cols.index('Symbol')))
-        portfolio = portfolio[cols]
+        Portfolio = Portfolio[cols]
 
-        return portfolio
+        return Portfolio
     except Exception as e:
         st.error(f"Error processing data: {e}")
         return None
