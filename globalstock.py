@@ -191,6 +191,8 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
             st.plotly_chart(fig)
     except Exception as e:
         st.error(f"An error occurred: {e}")
+
+
 def main():
     st.title("Stock Data Downloader & ESG Analyzer 📈")
 
@@ -261,6 +263,4 @@ def main():
 
 if __name__ == "__main__":
     from base64 import b64encode
-    main()
-
     main()
