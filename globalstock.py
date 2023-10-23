@@ -164,26 +164,52 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
         else:
             selected_tickers = ', '.join(selected_symbols)  # Join selected tickers with commas
             
-            # Create a Plotly line chart
             fig = go.Figure()  # Create a new Plotly figure
-            
-            # Customize the chart with explicit light colors
-            light_colors = ['#FF5733', '#FFBD33', '#33FF57', '#339CFF', '#FF33D1']  # Light colors
+
+            # Light colors for visualization
+            light_colors = ['#FF5733', '#FFBD33', '#33FF57', '#339CFF', '#FF33D1']
             color_mapping = {symbol: light_colors[i % len(light_colors)] for i, symbol in enumerate(selected_symbols)}
-            
+
             for symbol in selected_symbols:
                 symbol_data = filtered_data[filtered_data['Symbol'] == symbol]
-                # Add trace only once for each unique symbol
-                if symbol not in fig.data:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=symbol_data['Datetime'],
-                            y=symbol_data['High'],
-                            mode='lines',
-                            name=symbol,
-                            line=dict(color=color_mapping[symbol], width=2)
-                        )
+                
+                # Calculate 50-day and 200-day moving averages
+                symbol_data = symbol_data.copy()  # Avoid setting a copy warning
+                symbol_data['50-day SMA'] = symbol_data['High'].rolling(window=50).mean()
+                symbol_data['200-day SMA'] = symbol_data['High'].rolling(window=200).mean()
+
+                # Plot actual data
+                fig.add_trace(
+                    go.Scatter(
+                        x=symbol_data['Datetime'],
+                        y=symbol_data['High'],
+                        mode='lines',
+                        name=f"{symbol} Price",
+                        line=dict(color=color_mapping[symbol], width=2)
                     )
+                )
+
+                # Plot 50-day moving average
+                fig.add_trace(
+                    go.Scatter(
+                        x=symbol_data['Datetime'],
+                        y=symbol_data['50-day SMA'],
+                        mode='lines',
+                        name=f"{symbol} 50-day SMA",
+                        line=dict(color=color_mapping[symbol], width=1, dash='dot')
+                    )
+                )
+
+                # Plot 200-day moving average
+                fig.add_trace(
+                    go.Scatter(
+                        x=symbol_data['Datetime'],
+                        y=symbol_data['200-day SMA'],
+                        mode='lines',
+                        name=f"{symbol} 200-day SMA",
+                        line=dict(color=color_mapping[symbol], width=1, dash='dash')
+                    )
+                )
                 
                 # Add annotations for highest and lowest trading prices
                 min_return_row = symbol_data.loc[symbol_data['Low'].idxmin()]  # Get the row with the minimum 'Low' value
@@ -208,15 +234,13 @@ def display_time_series_chart(symbol_data, selected_symbols, start_date, end_dat
                     ax=0,
                     ay=40
                 )
-            
-            # Set chart title
+
             fig.update_layout(
-                title=f"Time Series Chart for {selected_tickers} Tickers",
+                title=f"Time Series Chart for {selected_tickers} Tickers with Moving Averages",
                 xaxis_title="Date",
-                yaxis_title="Highest Price"
+                yaxis_title="Price"
             )
             
-            # Show the chart
             st.plotly_chart(fig)
     except Exception as e:
         st.error(f"An error occurred: {e}")
