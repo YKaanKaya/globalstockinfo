@@ -164,9 +164,6 @@ def main():
                     esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
                     display_risk_levels(tickers, esg_scores)
 
-                if display_time_series_data:
-                    display_time_series_chart(final_data, tickers, final_data['Datetime'].min(), final_data['Datetime'].max())
-
                 if download_link:
                     csv = final_data.to_csv(index=False)
                     b64 = b64encode(csv.encode()).decode()
