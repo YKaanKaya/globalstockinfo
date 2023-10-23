@@ -13,7 +13,18 @@ import ticker_fetcher
 # Function to download stock data using yfinance
 def download_stock_data(selected_tickers, period, interval):
     try:
-        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker')
+        # Convert period strings to integer for 'window'
+        if period.endswith('d'):
+            window = int(period[:-1])
+        elif period.endswith('mo'):
+            window = int(period[:-2]) * 21  # Assuming 21 trading days per month
+        elif period.endswith('y'):
+            window = int(period[:-1]) * 252  # Assuming 252 trading days per year
+        else:
+            st.error("Invalid period format")
+            return None
+
+        data = yf.download(selected_tickers, period=period, interval=interval, group_by='ticker', window=window)
         return data
     except Exception as e:
         st.error(f"Error downloading data: {e}")
