@@ -292,6 +292,7 @@ with st.spinner("Fetching and processing stock data..."):
             # Display time series chart for the selected symbols over the entire period
             display_time_series_chart(processed_data, tickers, data.index[0].date(), data.index[-1].date())
 
+
 # Display ESG data
 if show_esg:
     st.write("### ESG Data")
@@ -307,8 +308,11 @@ if show_esg:
         esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
         display_risk_levels(tickers, esg_scores)
 
-st.markdown(get_table_download_link(processed_data), unsafe_allow_html=True)
-
+# Download processed data
+if processed_data is not None:
+    st.markdown(get_table_download_link(processed_data), unsafe_allow_html=True)
+else:
+    st.error("Processed data is not available.")
 
 # A bit more about the app
 st.markdown("""
