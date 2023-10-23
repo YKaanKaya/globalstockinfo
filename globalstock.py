@@ -264,14 +264,24 @@ if custom_ticker and custom_ticker not in selected_tickers:
 # Period selection
 period = st.sidebar.selectbox("Select Period", ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'], index=0)
 
-# Interval selection
-interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0)
+if 'selected_interval' not in st.session_state:
+    st.session_state.selected_interval = '1d'  # Set a default interval
+
+# Create the interval selection widget and update st.session_state.selected_interval when changed
+selected_interval = st.sidebar.selectbox("Select Interval", ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'], index=0, key="selected_interval")
+if selected_interval != st.session_state.selected_interval:
+    st.session_state.selected_interval = selected_interval
 
 # If user wants to see ESG data
 show_esg = st.sidebar.checkbox("Show ESG Data")
 
 # Downloading and processing the data based on user selection
 data = download_stock_data(selected_tickers, period, interval)  # Pass selected_tickers here
+
+# Add the custom ticker if it's provided and not already in the list
+if custom_ticker and custom_ticker not in selected_tickers:
+    selected_tickers.append(custom_ticker)
+    
 if data is not None:
     processed_data = process_data(data, period)
     if processed_data is not None:
