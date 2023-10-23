@@ -205,8 +205,6 @@ def main():
     display_time_series_data = st.sidebar.checkbox("Display Time Series Data", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
-    if st.sidebar.checkbox("Refresh Data"):
-        pass
 
     # Assuming default_tickers is defined somewhere before this, otherwise this will throw an error
     if tickers_input != default_tickers or st.sidebar.checkbox("Refresh Data"):
