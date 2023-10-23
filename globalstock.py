@@ -206,8 +206,9 @@ def main():
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
     if st.sidebar.checkbox("Refresh Data"):
-    pass
-    
+        pass
+
+    # Assuming default_tickers is defined somewhere before this, otherwise this will throw an error
     if tickers_input != default_tickers or st.sidebar.checkbox("Refresh Data"):
         with st.spinner("Fetching data..."):
             try:
