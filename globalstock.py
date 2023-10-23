@@ -206,8 +206,6 @@ def main():
     display_time_series_data = st.sidebar.checkbox("Display Time Series Data", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
-    if st.sidebar.checkbox("Refresh Data"):
-        pass
 
     if tickers_input != ', '.join(default_tickers) or st.sidebar.checkbox("Refresh Data"):
         with st.spinner("Fetching data..."):
