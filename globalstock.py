@@ -160,7 +160,8 @@ def main():
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
 
 
-    if tickers_input != ', '.join(default_tickers) or st.sidebar.checkbox("Refresh Data"):
+    refresh_data = st.sidebar.button("Refresh Data")
+    if tickers_input != ', '.join(default_tickers) or refresh_data:
         with st.spinner("Fetching data..."):
             try:
                 data_frames = []
