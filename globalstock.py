@@ -177,7 +177,8 @@ def main():
     data_dict = {}
     esg_data_list = []
     
-    fetch_data = (set(selected_tickers) != set(default_tickers)) or refresh_data
+    global initial_load
+    fetch_data = initial_load or (set(selected_tickers) != set(default_tickers)) or refresh_data
 
     if fetch_data:
         with st.spinner("Fetching data..."):
