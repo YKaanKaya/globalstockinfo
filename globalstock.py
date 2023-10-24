@@ -163,7 +163,7 @@ def main():
     custom_tickers = [ticker.strip().upper() for ticker in custom_tickers_input.split(',') if ticker.strip()]
 
     # Combine both lists, ensuring no duplicates
-    selected_tickers = list(set(selected_from_predefined + custom_tickers))
+    tickers = list(set(selected_from_predefined + custom_tickers))
 
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
