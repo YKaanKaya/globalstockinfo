@@ -171,7 +171,32 @@ def main():
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     download_link = st.sidebar.button("Download Data as CSV", False)
 
-    refresh_data = st.sidebar.button("Refresh Data", True)
+    ##refresh_data = st.sidebar.button("Refresh Data", True)
+    with st.spinner("Fetching data..."):
+        try:
+            data_frames = []
+            esg_data_list = []
+            for ticker in selected_tickers:
+                data = yf.download(ticker, period=period, interval=interval)
+                if data.empty:
+                    st.error(f"No data available for {ticker} in the selected date range.")
+                    continue
+
+                data['Symbol'] = ticker
+                data = compute_cumulative_return(data)
+                data = compute_moving_averages(data)
+                data_frames.append(data)
+
+                if display_esg or display_esg_risk_levels:
+                    esg_data = get_esg_data_with_headers_and_error_handling(ticker)
+                    esg_data_list.append(esg_data)
+
+            final_data = pd.concat(data_frames)
+            st.dataframe(final_data)
+
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            
     if set(selected_tickers) != set(default_tickers) or refresh_data:       
         with st.spinner("Fetching data..."):
             try:
