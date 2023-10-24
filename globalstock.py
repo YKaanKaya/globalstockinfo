@@ -78,13 +78,13 @@ def map_esg_risk_to_level(score):
 def display_esg_data_table(selected_symbols, esg_data_list):
     esg_df = pd.DataFrame(esg_data_list)
     esg_df.insert(0, 'Ticker', selected_symbols)
-    st.write("### ESG Data Table:")
+    st.markdown("### ESG Data Table:")
+    st.write("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
     st.table(esg_df)
-    st.sidebar.markdown("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
 
 def display_risk_levels(tickers, esg_scores):
     st.write("### ESG Risk Levels:")
-
+    st.write("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face, lower better.")
     risk_levels = ["Very Low", "Low", "Medium", "High", "Severe"]
     score_ranges = [5, 15, 25, 35, 45]
     colors = ["#FFEDCC", "#FFDB99", "#FFC266", "#FF9900", "#FF6600"]
@@ -136,8 +136,7 @@ def display_stock_price_chart(data, ticker):
     st.plotly_chart(fig)
     
 def display_esg_score_progress_bar(ticker, score):
-    st.write(f"### ESG Score for {ticker}")
-    st.sidebar.markdown("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face, lower better.")
+    st.write(f"### ESG Score for {ticker}")    
     max_score = 50  # assuming max possible score is 50
     progress_bar = st.progress(score/max_score)
     if score >= 40:
@@ -155,18 +154,14 @@ initial_load = True
 
 def main():
     st.title("Financial Data Application")
-    # Introduction and overview of the application
-    
+    # Introduction and overview of the application    
     st.markdown("Welcome to the Financial Data Application. This platform enables you to fetch stock price data for publicly traded companies, visualize key metrics, and delve into ESG (Environmental, Social, and Governance) data. Whether you're a professional investor, a student, or just curious about the stock market, this tool is designed to be both informative and intuitive.")
-    
-  
     st.markdown("With this foundation, feel free to explore the various features of the application. Happy investing!")
-    # Explanatory text for ticker selection
-    
-    st.sidebar.markdown("### Stock Ticker Selection")
-    
+   
+    # Explanatory text for ticker selection    
+    st.sidebar.markdown("### Stock Ticker Selection")    
     default_tickers = ["AAPL"]
-
+    
     # Predefined tickers for multiselect
     common_tickers = ticker_fetcher.get_tickers()
     st.sidebar.markdown("**Select one or more stock tickers from the predefined list below.**")
@@ -189,10 +184,8 @@ def main():
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
    
     # Explanatory text for ESG data and risk levels
-    st.sidebar.markdown("### ESG Data")
-    
-    display_esg = st.sidebar.checkbox("Display ESG data", True)
-   
+    st.sidebar.markdown("### ESG Data")    
+    display_esg = st.sidebar.checkbox("Display ESG data", True)   
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     
     # Explanatory text for data download
@@ -248,9 +241,7 @@ def main():
         st.markdown("- A cumulative return of 1.0 indicates that the investment's value hasn't changed.")
         st.markdown("- A number above 1.0 indicates a profit. For example, 1.5 means the investment has returned 150% of its initial value.")
         st.markdown("- A number less than 1.0 indicates a loss. For example, 0.8 means the investment has returned only 80% of its initial value, representing a 20% loss.")
-
-        
-                 
+                        
         # New visualizations
         for ticker in selected_tickers:
             if ticker in data_dict:
