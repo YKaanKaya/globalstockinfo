@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
-from ticker_fetcher import get_tickers  # Importing the get_tickers function from ticker_fetcher
+import ticker_fetcher
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -155,7 +155,7 @@ def main():
     default_tickers = ["AAPL", "GOOGL"]
 
     # Predefined tickers for multiselect
-    ccommon_tickers = get_tickers()
+    ccommon_tickers = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
 
     # Allow users to input their own tickers
