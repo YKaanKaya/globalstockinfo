@@ -137,6 +137,7 @@ def display_stock_price_chart(data, ticker):
     
 def display_esg_score_progress_bar(ticker, score):
     st.write(f"### ESG Score for {ticker}")
+    st.sidebar.markdown("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face, lower better.")
     max_score = 50  # assuming max possible score is 50
     progress_bar = st.progress(score/max_score)
     if score >= 40:
@@ -248,10 +249,8 @@ def main():
         st.markdown("- A number above 1.0 indicates a profit. For example, 1.5 means the investment has returned 150% of its initial value.")
         st.markdown("- A number less than 1.0 indicates a loss. For example, 0.8 means the investment has returned only 80% of its initial value, representing a 20% loss.")
 
-                      
-                   
-        st.sidebar.markdown("### ESG Risk Levels Visualization")
-
+        
+                 
         # New visualizations
         for ticker in selected_tickers:
             if ticker in data_dict:
@@ -267,7 +266,7 @@ def main():
         if display_esg_risk_levels:
             esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
             display_risk_levels(selected_tickers, esg_scores)
-        st.sidebar.markdown("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face.")
+       
 
         if download_link:
                 try:
