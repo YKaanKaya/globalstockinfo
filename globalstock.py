@@ -120,14 +120,39 @@ def display_risk_levels(tickers, esg_scores):
 
     st.plotly_chart(fig)
 
+def display_stock_price_chart(data, ticker):
+    fig = go.Figure()
 
+    # Plotting adjusted close price
+    fig.add_trace(go.Scatter(x=data.index, y=data['Adj Close'], mode='lines', name='Adj Close'))
+    
+    # Plotting moving averages
+    for window in [50, 200]:
+        fig.add_trace(go.Scatter(x=data.index, y=data[f'MA{window}'], mode='lines', name=f'MA{window}'))
+    
+    fig.update_layout(title=f'Stock Prices and Moving Averages for {ticker}', xaxis_title='Date', yaxis_title='Price ($)')
+    st.plotly_chart(fig)
+    
+def display_esg_score_progress_bar(ticker, score):
+    st.write(f"### ESG Score for {ticker}")
+    max_score = 50  # assuming max possible score is 50
+    progress_bar = st.progress(score/max_score)
+    if score >= 40:
+        progress_bar.color = 'red'
+    elif score >= 30:
+        progress_bar.color = 'orange'
+    elif score >= 20:
+        progress_bar.color = 'yellow'
+    else:
+        progress_bar.color = 'green'
+    
+    st.write(f"ESG Risk Score: {score}")
 
 def main():
     st.title("Financial Data Application")
 
-    default_tickers = ["AAPL", "GOOGL"]
-    tickers_input = st.sidebar.text_input("Enter the tickers (comma separated):", ', '.join(default_tickers))
-    tickers = [ticker.strip().upper() for ticker in tickers_input.split(',')]
+    common_tickers = ["AAPL", "GOOGL", "MSFT", "AMZN", "FB"]
+    selected_tickers = st.sidebar.multiselect("Select Tickers:", common_tickers, default=["AAPL", "GOOGL"])
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
     display_esg = st.sidebar.checkbox("Display ESG data", True)
@@ -156,8 +181,15 @@ def main():
                         esg_data_list.append(esg_data)
 
                 final_data = pd.concat(data_frames)
-                
-                st.dataframe(final_data)  # <-- Add this line to display the stock data
+                st.dataframe(final_data)
+
+                # New visualizations
+                for ticker, data in zip(selected_tickers, data_frames):
+                    display_stock_price_chart(data, ticker)
+                    if display_esg:
+                        esg_data = get_esg_data_with_headers_and_error_handling(ticker)
+                        if esg_data["Total ESG risk score"] is not None:
+                            display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
 
                 if display_esg:
                     display_esg_data_table(tickers, esg_data_list)
