@@ -170,10 +170,11 @@ def main():
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     download_link = st.sidebar.button("Download Data as CSV")
-
+    initial_load = True
+    
     # This is how you can use the refresh_data button to force data fetching
     refresh_data = st.sidebar.button("Refresh Data")
-
+    
     data_dict = {}
     esg_data_list = []
     
