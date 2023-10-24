@@ -148,6 +148,8 @@ def display_esg_score_progress_bar(ticker, score):
         progress_bar.color = 'green'
     
     st.write(f"ESG Risk Score: {score}")
+    
+initial_load = True
 
 def main():
     st.title("Financial Data Application")
@@ -170,7 +172,7 @@ def main():
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     download_link = st.sidebar.button("Download Data as CSV")
-    initial_load = True
+   
     
     # This is how you can use the refresh_data button to force data fetching
     refresh_data = st.sidebar.button("Refresh Data")
