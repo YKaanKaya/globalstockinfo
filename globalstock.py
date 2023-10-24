@@ -162,9 +162,7 @@ def main():
     # Explanatory text for ticker selection
     
     st.sidebar.markdown("### Stock Ticker Selection")
-    st.sidebar.markdown("Stock tickers are unique identifiers for publicly traded companies on stock exchanges. Below you have two methods to select tickers:")
-
-
+    
     default_tickers = ["AAPL"]
 
     # Predefined tickers for multiselect
@@ -192,21 +190,16 @@ def main():
     st.sidebar.markdown("### ESG Data")
     
     display_esg = st.sidebar.checkbox("Display ESG data", True)
-    st.sidebar.markdown("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
-    st.sidebar.markdown("### ESG Risk Levels Visualization")
-    st.sidebar.markdown("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face.")
+   
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     
     # Explanatory text for data download
     st.sidebar.markdown("### Data Export")
-    st.sidebar.markdown("Save the fetched stock data for offline analysis. The data will be in CSV format, compatible with most spreadsheet software.")
     download_link = st.sidebar.button("Download Data as CSV")
    
-    
     # This is how you can use the refresh_data button to force data fetching
     # Explanatory text for data refresh
     st.sidebar.markdown("### Refresh Data")
-    st.sidebar.markdown("Retrieve the latest data. Useful if you've altered ticker selections or believe the data might be outdated.")
     refresh_data = st.sidebar.button("Refresh Data")
     
     data_dict = {}
@@ -254,6 +247,13 @@ def main():
         st.markdown("- A number above 1.0 indicates a profit. For example, 1.5 means the investment has returned 150% of its initial value.")
         st.markdown("- A number less than 1.0 indicates a loss. For example, 0.8 means the investment has returned only 80% of its initial value, representing a 20% loss.")
 
+                      
+        
+        if display_esg:
+            display_esg_data_table(selected_tickers, esg_data_list)
+        st.sidebar.markdown("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
+        st.sidebar.markdown("### ESG Risk Levels Visualization")
+
         # New visualizations
         for ticker in selected_tickers:
             if ticker in data_dict:
@@ -263,12 +263,10 @@ def main():
                     if esg_data["Total ESG risk score"] is not None:
                         display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
 
-        if display_esg:
-            display_esg_data_table(selected_tickers, esg_data_list)
-
         if display_esg_risk_levels:
             esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
             display_risk_levels(selected_tickers, esg_scores)
+        st.sidebar.markdown("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face.")
 
         if download_link:
                 try:
