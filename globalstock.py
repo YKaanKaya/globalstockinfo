@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
+from ticker_fetcher import get_tickers  # Importing the get_tickers function from ticker_fetcher
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -151,19 +152,27 @@ def display_esg_score_progress_bar(ticker, score):
 def main():
     st.title("Financial Data Application")
 
-    common_tickers = ["AAPL", "GOOGL", "MSFT", "AMZN", "FB"]
-    selected_tickers = st.sidebar.multiselect("Select Tickers:", common_tickers, default=["AAPL", "GOOGL"])
+    default_tickers = ["AAPL", "GOOGL"]
+
+    # Predefined tickers for multiselect
+    ccommon_tickers = get_tickers()
+    selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
+
+    # Allow users to input their own tickers
+    custom_tickers_input = st.sidebar.text_input("Or enter custom tickers (comma separated):")
+    custom_tickers = [ticker.strip().upper() for ticker in custom_tickers_input.split(',') if ticker.strip()]
+
+    # Combine both lists, ensuring no duplicates
+    selected_tickers = list(set(selected_from_predefined + custom_tickers))
+
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
-    tickers_input = st.sidebar.text_input("Enter the tickers (comma separated):", ', '.join(default_tickers))
-    
-
 
     refresh_data = st.sidebar.button("Refresh Data")
-    if tickers_input != ', '.join(default_tickers) or refresh_data:
+    if set(selected_tickers) != set(default_tickers) or refresh_data:       
         with st.spinner("Fetching data..."):
             try:
                 data_frames = []
