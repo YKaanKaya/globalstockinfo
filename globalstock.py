@@ -163,45 +163,25 @@ def main():
     custom_tickers = [ticker.strip().upper() for ticker in custom_tickers_input.split(',') if ticker.strip()]
 
     # Combine both lists, ensuring no duplicates
-    selected_tickers= list(set(selected_from_predefined + custom_tickers))
+    selected_tickers = list(set(selected_from_predefined + custom_tickers))
 
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
-    download_link = st.sidebar.button("Download Data as CSV", False)
+    download_link = st.sidebar.button("Download Data as CSV")
 
-    ##refresh_data = st.sidebar.button("Refresh Data", True)
-    with st.spinner("Fetching data..."):
-        try:
-            data_frames = []
-            esg_data_list = []
-            for ticker in selected_tickers:
-                data = yf.download(ticker, period=period, interval=interval)
-                if data.empty:
-                    st.error(f"No data available for {ticker} in the selected date range.")
-                    continue
+    # This is how you can use the refresh_data button to force data fetching
+    refresh_data = st.sidebar.button("Refresh Data")
 
-                data['Symbol'] = ticker
-                data = compute_cumulative_return(data)
-                data = compute_moving_averages(data)
-                data_frames.append(data)
+    data_dict = {}
+    esg_data_list = []
+    
+    fetch_data = (set(selected_tickers) != set(default_tickers)) or refresh_data
 
-                if display_esg or display_esg_risk_levels:
-                    esg_data = get_esg_data_with_headers_and_error_handling(ticker)
-                    esg_data_list.append(esg_data)
-
-            final_data = pd.concat(data_frames)
-            st.dataframe(final_data)
-
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-            
-    if set(selected_tickers) != set(default_tickers) or refresh_data:       
+    if fetch_data:
         with st.spinner("Fetching data..."):
             try:
-                data_frames = []
-                esg_data_list = []
                 for ticker in selected_tickers:
                     data = yf.download(ticker, period=period, interval=interval)
                     if data.empty:
@@ -211,36 +191,42 @@ def main():
                     data['Symbol'] = ticker
                     data = compute_cumulative_return(data)
                     data = compute_moving_averages(data)
-                    data_frames.append(data)
+                    data_dict[ticker] = data
 
                     if display_esg or display_esg_risk_levels:
                         esg_data = get_esg_data_with_headers_and_error_handling(ticker)
                         esg_data_list.append(esg_data)
 
-                final_data = pd.concat(data_frames)
-                st.dataframe(final_data)
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
 
-                # New visualizations
-                for ticker, data in zip(selected_tickers, data_frames):
-                    display_stock_price_chart(data, ticker)
-                    if display_esg:
-                        esg_data = get_esg_data_with_headers_and_error_handling(ticker)
-                        if esg_data["Total ESG risk score"] is not None:
-                            display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
+        # Concatenate data frames for displaying and downloading
+        final_data = pd.concat(data_dict.values())
+        st.dataframe(final_data)
 
+        # New visualizations
+        for ticker in selected_tickers:
+            if ticker in data_dict:
+                display_stock_price_chart(data_dict[ticker], ticker)
                 if display_esg:
-                    display_esg_data_table(selected_tickers, esg_data_list)
+                    esg_data = get_esg_data_with_headers_and_error_handling(ticker)
+                    if esg_data["Total ESG risk score"] is not None:
+                        display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
 
-                if display_esg_risk_levels:
-                    esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
-                    display_risk_levels(selected_tickers, esg_scores)
+        if display_esg:
+            display_esg_data_table(selected_tickers, esg_data_list)
 
-                if download_link:
+        if display_esg_risk_levels:
+            esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
+            display_risk_levels(selected_tickers, esg_scores)
+
+        if download_link:
+                try:
                     csv = final_data.to_csv(index=False)
                     b64 = b64encode(csv.encode()).decode()
                     st.markdown(f"### Download Data as CSV:\n[Download Link](data:file/csv;base64,{b64})")
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     from base64 import b64encode
