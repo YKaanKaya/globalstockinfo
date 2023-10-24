@@ -158,6 +158,8 @@ def main():
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     download_link = st.sidebar.checkbox("Download Data as CSV", False)
+    tickers_input = st.sidebar.text_input("Enter the tickers (comma separated):", ', '.join(default_tickers))
+    
 
 
     refresh_data = st.sidebar.button("Refresh Data")
