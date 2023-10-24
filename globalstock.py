@@ -80,6 +80,7 @@ def display_esg_data_table(selected_symbols, esg_data_list):
     esg_df.insert(0, 'Ticker', selected_symbols)
     st.write("### ESG Data Table:")
     st.table(esg_df)
+    st.sidebar.markdown("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
 
 def display_risk_levels(tickers, esg_scores):
     st.write("### ESG Risk Levels:")
@@ -248,10 +249,7 @@ def main():
         st.markdown("- A number less than 1.0 indicates a loss. For example, 0.8 means the investment has returned only 80% of its initial value, representing a 20% loss.")
 
                       
-        
-        if display_esg:
-            display_esg_data_table(selected_tickers, esg_data_list)
-        st.sidebar.markdown("Environmental, Social, and Governance (ESG) metrics evaluate a company's commitment to sustainability and ethical practices. Lower risk scores typically indicate better corporate responsibility.")
+                   
         st.sidebar.markdown("### ESG Risk Levels Visualization")
 
         # New visualizations
@@ -262,6 +260,9 @@ def main():
                     esg_data = get_esg_data_with_headers_and_error_handling(ticker)
                     if esg_data["Total ESG risk score"] is not None:
                         display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
+
+        if display_esg:
+            display_esg_data_table(selected_tickers, esg_data_list)     
 
         if display_esg_risk_levels:
             esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
