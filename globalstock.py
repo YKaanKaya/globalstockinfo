@@ -169,9 +169,9 @@ def main():
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
     display_esg = st.sidebar.checkbox("Display ESG data", True)
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
-    download_link = st.sidebar.checkbox("Download Data as CSV", False)
+    download_link = st.sidebar.button("Download Data as CSV", False)
 
-    refresh_data = st.sidebar.button("Refresh Data")
+    refresh_data = st.sidebar.button("Refresh Data", True)
     if set(selected_tickers) != set(default_tickers) or refresh_data:       
         with st.spinner("Fetching data..."):
             try:
