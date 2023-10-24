@@ -204,11 +204,11 @@ def main():
                             display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
 
                 if display_esg:
-                    display_esg_data_table(tickers, esg_data_list)
+                    display_esg_data_table(selected_tickers, esg_data_list)
 
                 if display_esg_risk_levels:
                     esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
-                    display_risk_levels(tickers, esg_scores)
+                    display_risk_levels(selected_tickers, esg_scores)
 
                 if download_link:
                     csv = final_data.to_csv(index=False)
