@@ -177,7 +177,7 @@ def main():
             try:
                 data_frames = []
                 esg_data_list = []
-                for ticker in tickers:
+                for ticker in selected_tickers:
                     data = yf.download(ticker, period=period, interval=interval)
                     if data.empty:
                         st.error(f"No data available for {ticker} in the selected date range.")
