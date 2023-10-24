@@ -155,7 +155,7 @@ def main():
     default_tickers = ["AAPL", "GOOGL"]
 
     # Predefined tickers for multiselect
-    ccommon_tickers = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
+    common_tickers = ticker_fetcher.get_tickers(NYSE=nyse, NASDAQ=nasdaq, AMEX=amex)
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
 
     # Allow users to input their own tickers
