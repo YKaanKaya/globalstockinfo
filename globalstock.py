@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
-import csv
+import ticker_fetcher
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -149,48 +149,21 @@ def display_esg_score_progress_bar(ticker, score):
         progress_bar.color = 'green'
     
     st.write(f"ESG Risk Score: {score}")
-
-# Function to read tickers from a CSV file hosted on GitHub
-def read_tickers_from_github_csv(file_url):
-    response = requests.get(file_url)
-    if response.status_code == 200:
-        try:
-            content = response.content.decode('utf-8')
-            tickers = []
-            csv_data = csv.reader(content.splitlines(), delimiter=',')
-            for row in csv_data:
-                if row:  # Check if the row is not empty
-                    if len(row) >= 1:
-                        tickers.append(row[0])
-            return tickers
-        except Exception as e:
-            st.error(f"Error parsing CSV data: {str(e)}")
-            return []
-    else:
-        st.error(f"Failed to fetch CSV file. Status code: {response.status_code}")
-        return []
+    
+initial_load = True
 
 def main():
     st.title("Financial Data Application")
     # Introduction and overview of the application    
     st.markdown("Welcome to the Financial Data Application. This platform enables you to fetch stock price data for publicly traded companies, visualize key metrics, and delve into ESG (Environmental, Social, and Governance) data. Whether you're a professional investor, a student, or just curious about the stock market, this tool is designed to be both informative and intuitive.")
     st.markdown("With this foundation, feel free to explore the various features of the application. Happy investing!")
-
-    # Filter out invalid default values
-    valid_default_tickers = [ticker for ticker in default_tickers if ticker in common_tickers]
-
-    # Use the filtered default values in the multiselect widget
-    selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=valid_default_tickers)
-    
+   
     # Explanatory text for ticker selection    
     st.sidebar.markdown("### Stock Ticker Selection")    
     default_tickers = ["AAPL"]
     
-    # Specify the raw URL of your CSV file on GitHub
-    github_csv_url = 'https://raw.githubusercontent.com/YKKaya/globalstockinfo/main/tickers.csv'
-
-# Read tickers from the CSV file hosted on GitHub
-    common_tickers = read_tickers_from_github_csv(github_csv_url)
+    # Predefined tickers for multiselect
+    common_tickers = ticker_fetcher.get_tickers()
     st.sidebar.markdown("**Select one or more stock tickers from the predefined list below.**")
     st.sidebar.markdown("_These represent the stock symbols for publicly traded companies._")
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
