@@ -177,7 +177,7 @@ def main():
     default_tickers = ["AAPL"]
     
     # Specify the raw URL of your CSV file on GitHub
-    github_csv_url = 'https://raw.githubusercontent.com/yourusername/yourrepository/master/tickers.csv'
+    github_csv_url = 'https://raw.githubusercontent.com/YKKaya/globalstockinfo/main/tickers.csv'
 
 # Read tickers from the CSV file hosted on GitHub
     common_tickers = read_tickers_from_github_csv(github_csv_url)
