@@ -149,7 +149,21 @@ def display_esg_score_progress_bar(ticker, score):
         progress_bar.color = 'green'
     
     st.write(f"ESG Risk Score: {score}")
-    
+
+# Function to read tickers from a CSV file hosted on GitHub
+def read_tickers_from_github_csv(file_url):
+    response = requests.get(file_url)
+    if response.status_code == 200:
+        content = response.content.decode('utf-8')
+        tickers = []
+        csv_data = csv.reader(content.splitlines(), delimiter=',')
+        for row in csv_data:
+            if row:  # Check if the row is not empty
+                tickers.append(row[0])
+        return tickers
+    else:
+        return []
+        
 initial_load = True
 
 def main():
@@ -162,8 +176,11 @@ def main():
     st.sidebar.markdown("### Stock Ticker Selection")    
     default_tickers = ["AAPL"]
     
-    # Predefined tickers for multiselect
-    common_tickers = ticker_fetcher.get_tickers()
+    # Specify the raw URL of your CSV file on GitHub
+    github_csv_url = 'https://raw.githubusercontent.com/yourusername/yourrepository/master/tickers.csv'
+
+# Read tickers from the CSV file hosted on GitHub
+    common_tickers = read_tickers_from_github_csv(github_csv_url)
     st.sidebar.markdown("**Select one or more stock tickers from the predefined list below.**")
     st.sidebar.markdown("_These represent the stock symbols for publicly traded companies._")
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
