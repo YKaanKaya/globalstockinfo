@@ -175,7 +175,13 @@ def main():
     # Introduction and overview of the application    
     st.markdown("Welcome to the Financial Data Application. This platform enables you to fetch stock price data for publicly traded companies, visualize key metrics, and delve into ESG (Environmental, Social, and Governance) data. Whether you're a professional investor, a student, or just curious about the stock market, this tool is designed to be both informative and intuitive.")
     st.markdown("With this foundation, feel free to explore the various features of the application. Happy investing!")
-   
+
+    # Filter out invalid default values
+    valid_default_tickers = [ticker for ticker in default_tickers if ticker in common_tickers]
+
+    # Use the filtered default values in the multiselect widget
+    selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=valid_default_tickers)
+    
     # Explanatory text for ticker selection    
     st.sidebar.markdown("### Stock Ticker Selection")    
     default_tickers = ["AAPL"]
