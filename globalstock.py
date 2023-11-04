@@ -154,17 +154,21 @@ def display_esg_score_progress_bar(ticker, score):
 def read_tickers_from_github_csv(file_url):
     response = requests.get(file_url)
     if response.status_code == 200:
-        content = response.content.decode('utf-8')
-        tickers = []
-        csv_data = csv.reader(content.splitlines(), delimiter=',')
-        for row in csv_data:
-            if row:  # Check if the row is not empty
-                tickers.append(row[0])
-        return tickers
+        try:
+            content = response.content.decode('utf-8')
+            tickers = []
+            csv_data = csv.reader(content.splitlines(), delimiter=',')
+            for row in csv_data:
+                if row:  # Check if the row is not empty
+                    if len(row) >= 1:
+                        tickers.append(row[0])
+            return tickers
+        except Exception as e:
+            st.error(f"Error parsing CSV data: {str(e)}")
+            return []
     else:
+        st.error(f"Failed to fetch CSV file. Status code: {response.status_code}")
         return []
-        
-initial_load = True
 
 def main():
     st.title("Financial Data Application")
