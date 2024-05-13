@@ -65,15 +65,28 @@ class SectorConstants:
 
 
 # get tickers from chosen exchanges (default all) as a list
-def get_tickers(NYSE=True, NASDAQ=True, AMEX=True):
-    tickers_list = []
-    if NYSE:
+def get_tickers():
+    try:
+        tickers_list = []
         tickers_list.extend(__exchange2list('nyse'))
-    if NASDAQ:
         tickers_list.extend(__exchange2list('nasdaq'))
-    if AMEX:
         tickers_list.extend(__exchange2list('amex'))
-    return tickers_list
+        return tickers_list
+    except requests.exceptions.JSONDecodeError as e:
+        print(f"An error occurred while fetching tickers from the API: {str(e)}")
+        print("Attempting to fetch tickers from CSV file...")
+        return get_tickers_from_csv()
+
+def get_tickers_from_csv():
+    try:
+        # Load tickers from CSV file hosted on GitHub
+        url = 'https://raw.githubusercontent.com/YourUsername/YourRepository/main/tickers.csv'
+        tickers_df = pd.read_csv(url)
+        tickers = tickers_df['Ticker'].tolist()
+        return tickers
+    except Exception as e:
+        print(f"An error occurred while fetching tickers from CSV file: {str(e)}")
+        return []
 
 
 def get_tickers_filtered(mktcap_min=None, mktcap_max=None, sectors=None):
