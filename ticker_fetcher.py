@@ -80,7 +80,7 @@ def get_tickers():
 def get_tickers_from_csv():
     try:
         # Load tickers from CSV file hosted on GitHub
-        url = 'https://raw.githubusercontent.com/YourUsername/YourRepository/main/tickers.csv'
+        url = 'https://raw.githubusercontent.com/YKKaya/globalstockinfo/main/tickers.csv'
         tickers_df = pd.read_csv(url)
         tickers = tickers_df['Ticker'].tolist()
         return tickers
