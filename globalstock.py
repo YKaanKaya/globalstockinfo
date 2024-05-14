@@ -160,7 +160,7 @@ def main():
    
     # Explanatory text for ticker selection    
     st.sidebar.markdown("### Stock Ticker Selection")    
-    default_tickers = ["AAPL"]
+    default_tickers = ["MSFT"]
     
     # Predefined tickers for multiselect
     common_tickers = ticker_fetcher.get_tickers()
