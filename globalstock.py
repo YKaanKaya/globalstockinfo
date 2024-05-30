@@ -153,11 +153,9 @@ def display_esg_score_progress_bar(ticker, score):
 @st.cache_data
 def get_tickers_from_csv():
     url = 'https://raw.githubusercontent.com/YKKaya/globalstockinfo/main/tickers.csv'
-    tickers_df = pd.read_csv(url)
-    if 'Ticker' in tickers_df.columns:
-        return tickers_df['Ticker'].tolist()
-    else:
-        raise ValueError("The CSV file does not contain a 'Ticker' column")
+    tickers_df = pd.read_csv(url, header=None)
+    tickers = tickers_df[0].tolist()
+    return tickers
 
 def main():
     st.title("Financial Data Application")
