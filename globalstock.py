@@ -19,7 +19,7 @@ def compute_moving_averages(data, windows=[50, 200]):
     return data
 
 # Scrape the ESG data
-@st.cache
+@st.cache_data
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
     url = f"https://uk.finance.yahoo.com/quote/{ticker}/sustainability?p={ticker}"
@@ -160,6 +160,12 @@ def main():
     default_tickers = ["NVDA"]
     
     common_tickers = ticker_fetcher.get_tickers()
+
+    # Ensure default_tickers are in common_tickers
+    default_tickers = [ticker for ticker in default_tickers if ticker in common_tickers]
+    if not default_tickers:
+        default_tickers = [common_tickers[0]]
+
     st.sidebar.markdown("**Select one or more stock tickers from the predefined list below.**")
     st.sidebar.markdown("_These represent the stock symbols for publicly traded companies._")
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
