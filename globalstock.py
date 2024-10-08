@@ -6,6 +6,11 @@ from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
 import ticker_fetcher
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+import time
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -18,48 +23,43 @@ def compute_moving_averages(data, windows=[50, 200]):
     
 # Scrape the ESG data
 @st.cache
-def get_esg_data_with_headers_and_error_handling(ticker):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
+def get_esg_data_selenium(ticker):
+    options = Options()
+    options.add_argument("--headless")
+    service = Service("/path/to/chromedriver")  # Update with your ChromeDriver path
+    driver = webdriver.Chrome(service=service, options=options)
+    
     url = f"https://uk.finance.yahoo.com/quote/{ticker}/sustainability?p={ticker}"
-    response = requests.get(url, headers=headers)
-
-    if response.status_code != 200:
-        print(f"Failed to fetch data for {ticker}. Status code: {response.status_code}")
-        return None
-
-    soup = BeautifulSoup(response.content, 'html.parser')
+    driver.get(url)
+    
+    # Wait for page to fully load
+    time.sleep(5)
+    
     result = {}
-
+    
     try:
-        total_esg_risk_score = soup.find("div", {"class": "Fz(36px) Fw(600) D(ib) Mend(5px)"}).text
-        result["Total ESG risk score"] = float(total_esg_risk_score)
+        total_esg = driver.find_element(By.CSS_SELECTOR, "div.Fz(36px).Fw(600).D(ib).Mend(5px)").text
+        result["Total ESG risk score"] = float(total_esg)
     except:
         result["Total ESG risk score"] = None
 
-    scores = soup.find_all("div", {"class": "D(ib) Fz(23px) smartphone_Fz(22px) Fw(600)"})
     try:
+        scores = driver.find_elements(By.CSS_SELECTOR, "div.D(ib).Fz(23px).smartphone_Fz(22px).Fw(600)")
         result["Environment risk score"] = float(scores[0].text)
-    except:
-        result["Environment risk score"] = None
-
-    try:
         result["Social risk score"] = float(scores[1].text)
-    except:
-        result["Social risk score"] = None
-
-    try:
         result["Governance risk score"] = float(scores[2].text)
     except:
+        result["Environment risk score"] = None
+        result["Social risk score"] = None
         result["Governance risk score"] = None
-
+    
     try:
-        controversy_level = soup.find("div", {"class": "D(ib) Fz(36px) Fw(500)"}).text
-        result["Controversy level"] = int(controversy_level)
+        controversy = driver.find_element(By.CSS_SELECTOR, "div.D(ib).Fz(36px).Fw(500)").text
+        result["Controversy level"] = int(controversy)
     except:
         result["Controversy level"] = None
-
+    
+    driver.quit()
     return result
 
 # Function to map ESG risk score to risk level
