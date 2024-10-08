@@ -7,3 +7,5 @@ plotly==5.3.1
 yesg==2.1.1
 requests==2.31.0
 beautifulsoup4==4.12.2
+selenium==4.5.0
+webdriver-manager==3.8.0
