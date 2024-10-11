@@ -7,6 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import ticker_fetcher
 from base64 import b64encode
+import time
+import random
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -17,48 +19,55 @@ def compute_moving_averages(data, windows=[50, 200]):
         data[f'MA{window}'] = data['Adj Close'].rolling(window=window).mean()
     return data
 
-@st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://finance.yahoo.com",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
     }
-    url = f"https://uk.finance.yahoo.com/quote/{ticker}/sustainability?p={ticker}"
-    response = requests.get(url, headers=headers)
-
-    if response.status_code != 200:
-        print(f"Failed to fetch data for {ticker}. Status code: {response.status_code}")
+    url = f"https://finance.yahoo.com/quote/{ticker}/sustainability?p={ticker}"
+    
+    # Add a random delay between requests
+    time.sleep(random.uniform(1, 3))
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()  # Raise an exception for bad status codes
+    except requests.RequestException as e:
+        print(f"Failed to fetch data for {ticker}. Error: {e}")
         return None
 
     soup = BeautifulSoup(response.content, 'html.parser')
     result = {}
 
     try:
-        total_esg_risk_score = soup.find("div", {"class": "Fz(36px) Fw(600) D(ib) Mend(5px)"}).text
-        result["Total ESG risk score"] = float(total_esg_risk_score)
-    except:
-        result["Total ESG risk score"] = None
+        esg_section = soup.find('div', {'data-test': 'qsp-sustainability'})
+        if not esg_section:
+            print(f"ESG section not found for {ticker}")
+            return None
 
-    scores = soup.find_all("div", {"class": "D(ib) Fz(23px) smartphone_Fz(22px) Fw(600)"})
-    try:
-        result["Environment risk score"] = float(scores[0].text)
-    except:
-        result["Environment risk score"] = None
+        total_esg_risk = esg_section.find('div', string='Total ESG Risk')
+        if total_esg_risk:
+            score = total_esg_risk.find_next('div').text.strip()
+            result["Total ESG risk score"] = float(score) if score.replace('.', '').isdigit() else None
 
-    try:
-        result["Social risk score"] = float(scores[1].text)
-    except:
-        result["Social risk score"] = None
+        for category in ['Environment Risk', 'Social Risk', 'Governance Risk']:
+            category_elem = esg_section.find('span', string=category)
+            if category_elem:
+                score = category_elem.find_next('span').text.strip()
+                result[f"{category.split()[0].lower()} risk score"] = float(score) if score.replace('.', '').isdigit() else None
 
-    try:
-        result["Governance risk score"] = float(scores[2].text)
-    except:
-        result["Governance risk score"] = None
+        controversy_level = esg_section.find('div', string='Controversy Level')
+        if controversy_level:
+            level = controversy_level.find_next('div').text.strip()
+            result["Controversy level"] = int(level) if level.isdigit() else None
 
-    try:
-        controversy_level = soup.find("div", {"class": "D(ib) Fz(36px) Fw(500)"}).text
-        result["Controversy level"] = int(controversy_level)
-    except:
-        result["Controversy level"] = None
+    except Exception as e:
+        print(f"Error parsing ESG data for {ticker}: {e}")
 
     return result
 
