@@ -26,7 +26,16 @@ def get_esg_data(ticker):
             return None
         return esg_data
     except Exception as e:
-        st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
+        st.warning(f"Error fetching ESG data for {ticker}: {str(e)}")
+        return None
+
+def get_company_info(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        return info
+    except Exception as e:
+        st.warning(f"Error fetching company info for {ticker}: {str(e)}")
         return None
 
 def compute_returns(data):
@@ -113,7 +122,7 @@ def display_esg_chart(esg_data, ticker):
 def main():
     st.set_page_config(layout="wide")
     st.title("Advanced Financial Data Dashboard")
-    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, and ESG metrics.")
+    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
 
     st.sidebar.header("Configure Your Analysis")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
@@ -161,6 +170,22 @@ def main():
             col4.metric("Governance Score", f"{esg_data['governanceScore'].iloc[0]:.2f}")
         else:
             st.warning("ESG data not available for this stock.")
+            
+            # Fetch and display alternative company information
+            company_info = get_company_info(ticker)
+            if company_info:
+                st.subheader("Company Information")
+                col1, col2 = st.columns(2)
+                col1.metric("Sector", company_info.get('sector', 'N/A'))
+                col2.metric("Industry", company_info.get('industry', 'N/A'))
+                col1.metric("Full Time Employees", company_info.get('fullTimeEmployees', 'N/A'))
+                col2.metric("Country", company_info.get('country', 'N/A'))
+                
+                st.subheader("Financial Metrics")
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Market Cap", f"${company_info.get('marketCap', 'N/A'):,}")
+                col2.metric("Forward P/E", company_info.get('forwardPE', 'N/A'))
+                col3.metric("Dividend Yield", f"{company_info.get('dividendYield', 'N/A'):.2%}" if company_info.get('dividendYield') else 'N/A')
     else:
         st.error(f"Unable to fetch data for {ticker}. Please check the debug information above and try again.")
 
