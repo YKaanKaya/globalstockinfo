@@ -17,6 +17,10 @@ def get_stock_data(ticker, from_date, to_date):
         # Fetch daily close data
         resp = polygon_client.stocks_equities_aggregates(ticker, 1, "day", from_date, to_date, unadjusted=False)
         
+        if not resp.results:
+            st.error(f"No data available for {ticker} in the selected date range.")
+            return None
+        
         # Convert to DataFrame
         df = pd.DataFrame(resp.results)
         df['date'] = pd.to_datetime(df['t'], unit='ms')
@@ -26,7 +30,7 @@ def get_stock_data(ticker, from_date, to_date):
         
         return df
     except Exception as e:
-        print(f"Error fetching data for {ticker}: {str(e)}")
+        st.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
 def compute_returns(data):
@@ -58,7 +62,7 @@ def get_esg_data_with_headers_and_error_handling(ticker):
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()  # Raise an exception for bad status codes
     except requests.RequestException as e:
-        print(f"Failed to fetch data for {ticker}. Error: {e}")
+        st.error(f"Failed to fetch ESG data for {ticker}. Error: {e}")
         return None
 
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -67,7 +71,7 @@ def get_esg_data_with_headers_and_error_handling(ticker):
     try:
         esg_section = soup.find('div', {'data-test': 'qsp-sustainability'})
         if not esg_section:
-            print(f"ESG section not found for {ticker}")
+            st.warning(f"ESG section not found for {ticker}")
             return None
 
         total_esg_risk = esg_section.find('div', string='Total ESG Risk')
@@ -87,7 +91,7 @@ def get_esg_data_with_headers_and_error_handling(ticker):
             result["Controversy level"] = int(level) if level.isdigit() else None
 
     except Exception as e:
-        print(f"Error parsing ESG data for {ticker}: {e}")
+        st.error(f"Error parsing ESG data for {ticker}: {e}")
 
     return result
 
@@ -183,6 +187,9 @@ def main():
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
+    # Debug information
+    st.write(f"Debug: Fetching data for {ticker} from {start_date} to {end_date}")
+
     # Fetch stock data
     with st.spinner('Fetching stock data...'):
         stock_data = get_stock_data(ticker, start_date, end_date)
@@ -223,7 +230,7 @@ def main():
         else:
             st.warning("ESG data not available for this stock.")
     else:
-        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+        st.error(f"Unable to fetch data for {ticker}. Please check the debug information above and try again.")
 
 if __name__ == "__main__":
     main()
