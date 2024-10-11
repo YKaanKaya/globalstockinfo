@@ -1,17 +1,10 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+from yesg import Yesg
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-import requests
-
-# URL of the open-source ESG spreadsheet
-ESG_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1_DR3CZrl1K1WU8Mi2e1qAtGoqZKJTnt9pLIM0ZxGU7A/export?format=csv&gid=486845845"
-
-@st.cache_data
-def load_esg_data():
-    return pd.read_csv(ESG_SPREADSHEET_URL)
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -25,19 +18,14 @@ def get_stock_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
-def get_esg_data(ticker, esg_df):
+def get_esg_data(ticker):
     try:
-        company_data = esg_df[esg_df['ticker'] == ticker].iloc[0]
-        return {
-            'Environment Score': company_data['environmental_score'],
-            'Social Score': company_data['social_score'],
-            'Governance Score': company_data['governance_score'],
-            'Total ESG Score': company_data['total_esg_score'],
-            'ESG Risk Level': company_data['esg_risk_level']
-        }
-    except IndexError:
-        st.warning(f"No ESG data found for {ticker}")
-        return None
+        yesg = Yesg(ticker)
+        esg_data = yesg.sustainability
+        if esg_data is None:
+            st.warning(f"No ESG data found for {ticker}")
+            return None
+        return esg_data
     except Exception as e:
         st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
         return None
@@ -113,13 +101,16 @@ def display_returns_chart(data, ticker):
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Environment Score", f"{esg_data['Environment Score']:.2f}")
-    col2.metric("Social Score", f"{esg_data['Social Score']:.2f}")
-    col3.metric("Governance Score", f"{esg_data['Governance Score']:.2f}")
+    col1.metric("Environment Score", f"{esg_data.get('environmentScore', 'N/A')}")
+    col2.metric("Social Score", f"{esg_data.get('socialScore', 'N/A')}")
+    col3.metric("Governance Score", f"{esg_data.get('governanceScore', 'N/A')}")
     
     col1, col2 = st.columns(2)
-    col1.metric("Total ESG Score", f"{esg_data['Total ESG Score']:.2f}")
-    col2.metric("ESG Risk Level", esg_data['ESG Risk Level'])
+    col1.metric("Total ESG Score", f"{esg_data.get('totalEsg', 'N/A')}")
+    col2.metric("ESG Performance", esg_data.get('esgPerformance', 'N/A'))
+    
+    st.subheader("ESG Details")
+    st.write(esg_data)
 
 def display_company_info(info):
     st.subheader("Company Information")
@@ -139,10 +130,6 @@ def main():
     st.set_page_config(layout="wide")
     st.title("Advanced Financial Data Dashboard")
     st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
-
-    # Load ESG data
-    with st.spinner('Loading ESG data...'):
-        esg_df = load_esg_data()
 
     st.sidebar.header("Configure Your Analysis")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
@@ -175,8 +162,10 @@ def main():
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
 
-        esg_data = get_esg_data(ticker, esg_df)
-        if esg_data:
+        with st.spinner('Fetching ESG data...'):
+            esg_data = get_esg_data(ticker)
+
+        if esg_data is not None:
             st.header(f"{ticker} ESG Analysis")
             display_esg_data(esg_data)
         else:
