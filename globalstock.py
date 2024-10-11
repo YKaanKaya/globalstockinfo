@@ -5,8 +5,13 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import requests
-import os
-import json
+
+# URL of the open-source ESG spreadsheet
+ESG_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1_DR3CZrl1K1WU8Mi2e1qAtGoqZKJTnt9pLIM0ZxGU7A/export?format=csv&gid=486845845"
+
+@st.cache_data
+def load_esg_data():
+    return pd.read_csv(ESG_SPREADSHEET_URL)
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -20,28 +25,21 @@ def get_stock_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
-def get_esg_data(ticker):
-    api_key = os.environ.get('RAPIDAPI_KEY')
-    if not api_key:
-        st.error("RapidAPI key not found in environment variables.")
-        return None
-
-    url = f"https://esg-risk-ratings-for-stocks.p.rapidapi.com/api/v1/resources/esg"
-    querystring = {"ticker": ticker}
-    headers = {
-        "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "esg-risk-ratings-for-stocks.p.rapidapi.com"
-    }
+def get_esg_data(ticker, esg_df):
     try:
-        response = requests.get(url, headers=headers, params=querystring)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    except requests.RequestException as e:
-        st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
+        company_data = esg_df[esg_df['ticker'] == ticker].iloc[0]
+        return {
+            'Environment Score': company_data['environmental_score'],
+            'Social Score': company_data['social_score'],
+            'Governance Score': company_data['governance_score'],
+            'Total ESG Score': company_data['total_esg_score'],
+            'ESG Risk Level': company_data['esg_risk_level']
+        }
+    except IndexError:
+        st.warning(f"No ESG data found for {ticker}")
         return None
-    except json.JSONDecodeError:
-        st.error(f"Error decoding ESG data for {ticker}. Response was not valid JSON.")
+    except Exception as e:
+        st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
         return None
 
 def get_company_info(ticker):
@@ -113,21 +111,15 @@ def display_returns_chart(data, ticker):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_esg_data(esg_data):
-    st.subheader("ESG Risk Ratings")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total ESG Risk Score", f"{esg_data['totalEsgRiskScore']:.2f}")
-    col2.metric("Environment Risk Score", f"{esg_data['environmentRiskScore']:.2f}")
-    col3.metric("Social Risk Score", f"{esg_data['socialRiskScore']:.2f}")
-    col4.metric("Governance Risk Score", f"{esg_data['governanceRiskScore']:.2f}")
-
-    st.subheader("ESG Risk Category")
-    st.write(esg_data['esgRiskCategory'])
-
-    st.subheader("ESG Performance")
+    st.subheader("ESG Data")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Environment Performance", esg_data['environmentPerformance'])
-    col2.metric("Social Performance", esg_data['socialPerformance'])
-    col3.metric("Governance Performance", esg_data['governancePerformance'])
+    col1.metric("Environment Score", f"{esg_data['Environment Score']:.2f}")
+    col2.metric("Social Score", f"{esg_data['Social Score']:.2f}")
+    col3.metric("Governance Score", f"{esg_data['Governance Score']:.2f}")
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Total ESG Score", f"{esg_data['Total ESG Score']:.2f}")
+    col2.metric("ESG Risk Level", esg_data['ESG Risk Level'])
 
 def display_company_info(info):
     st.subheader("Company Information")
@@ -147,6 +139,10 @@ def main():
     st.set_page_config(layout="wide")
     st.title("Advanced Financial Data Dashboard")
     st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
+
+    # Load ESG data
+    with st.spinner('Loading ESG data...'):
+        esg_df = load_esg_data()
 
     st.sidebar.header("Configure Your Analysis")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
@@ -179,9 +175,7 @@ def main():
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
 
-        with st.spinner('Fetching ESG data...'):
-            esg_data = get_esg_data(ticker)
-
+        esg_data = get_esg_data(ticker, esg_df)
         if esg_data:
             st.header(f"{ticker} ESG Analysis")
             display_esg_data(esg_data)
