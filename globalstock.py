@@ -4,9 +4,9 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-import http.client
-import json
+import requests
 import os
+import json
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -23,36 +23,46 @@ def get_stock_data(ticker, start_date, end_date):
 def get_rapidapi_esg_data(ticker):
     api_key = os.environ.get('RAPIDAPI_KEY')
     if not api_key:
-        st.error("RapidAPI key not found. Please set the RAPIDAPI_KEY environment variable.")
+        st.error("RapidAPI key not found in environment variables.")
         return None
 
-    conn = http.client.HTTPSConnection("esg-risk-ratings-for-stocks.p.rapidapi.com")
+    url = f"https://esg-environmental-social-governance-data.p.rapidapi.com/search"
+    querystring = {"q": ticker}
     headers = {
-        'x-rapidapi-key': api_key,
-        'x-rapidapi-host': "esg-risk-ratings-for-stocks.p.rapidapi.com"
+        "X-RapidAPI-Key": api_key,
+        "X-RapidAPI-Host": "esg-environmental-social-governance-data.p.rapidapi.com"
     }
     try:
-        conn.request("GET", f"/api/v1/resources/esg?ticker={ticker}", headers=headers)
-        res = conn.getresponse()
-        data = res.read()
-        esg_data = json.loads(data.decode("utf-8"))
-        
-        if esg_data and 'esg' in esg_data:
-            return esg_data['esg']
+        response = requests.get(url, headers=headers, params=querystring)
+        response.raise_for_status()
+        data = response.json()
+        if data and isinstance(data, list) and len(data) > 0:
+            return data[0]
         else:
-            st.warning(f"No ESG data found for {ticker}")
+            st.warning(f"No ESG data found for {ticker}. Response: {data}")
             return None
-    except Exception as e:
-        st.error(f"Error fetching RapidAPI ESG data for {ticker}: {str(e)}")
+    except requests.RequestException as e:
+        st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
+        return None
+    except json.JSONDecodeError:
+        st.error(f"Error decoding ESG data for {ticker}. Response was not valid JSON.")
         return None
 
 def get_company_info(ticker):
     try:
         stock = yf.Ticker(ticker)
-        info = stock.info
+        info = {
+            'sector': stock.info.get('sector', 'N/A'),
+            'industry': stock.info.get('industry', 'N/A'),
+            'fullTimeEmployees': stock.info.get('fullTimeEmployees', 'N/A'),
+            'country': stock.info.get('country', 'N/A'),
+            'marketCap': stock.info.get('marketCap', 'N/A'),
+            'forwardPE': stock.info.get('forwardPE', 'N/A'),
+            'dividendYield': stock.info.get('dividendYield', 'N/A')
+        }
         return info
     except Exception as e:
-        st.warning(f"Error fetching company info for {ticker}: {str(e)}")
+        st.error(f"Error fetching company info for {ticker}: {str(e)}")
         return None
 
 def compute_returns(data):
@@ -107,21 +117,29 @@ def display_returns_chart(data, ticker):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_esg_data(esg_data):
-    st.subheader("ESG Risk Ratings")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total ESG Risk Score", f"{esg_data['totalEsgRiskScore']:.2f}")
-    col2.metric("Environment Risk Score", f"{esg_data['environmentRiskScore']:.2f}")
-    col3.metric("Social Risk Score", f"{esg_data['socialRiskScore']:.2f}")
-    col4.metric("Governance Risk Score", f"{esg_data['governanceRiskScore']:.2f}")
-
-    st.subheader("ESG Risk Category")
-    st.write(esg_data['esgRiskCategory'])
-
-    st.subheader("ESG Performance")
+    st.subheader("ESG Data")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Environment Performance", esg_data['environmentPerformance'])
-    col2.metric("Social Performance", esg_data['socialPerformance'])
-    col3.metric("Governance Performance", esg_data['governancePerformance'])
+    col1.metric("ESG Score", esg_data.get('esg_score', 'N/A'))
+    col2.metric("Environment Score", esg_data.get('environment_score', 'N/A'))
+    col3.metric("Social Score", esg_data.get('social_score', 'N/A'))
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Governance Score", esg_data.get('governance_score', 'N/A'))
+    col2.metric("ESG Performance", esg_data.get('esg_performance', 'N/A'))
+
+def display_company_info(info):
+    st.subheader("Company Information")
+    col1, col2 = st.columns(2)
+    col1.metric("Sector", info.get('sector', 'N/A'))
+    col2.metric("Industry", info.get('industry', 'N/A'))
+    col1.metric("Full Time Employees", info.get('fullTimeEmployees', 'N/A'))
+    col2.metric("Country", info.get('country', 'N/A'))
+    
+    st.subheader("Financial Metrics")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
+    col2.metric("Forward P/E", round(info.get('forwardPE', 'N/A'), 2) if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
+    col3.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
 
 def main():
     st.set_page_config(layout="wide")
@@ -138,7 +156,7 @@ def main():
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
-    st.write(f"Debug: Fetching data for {ticker} from {start_date} to {end_date}")
+    st.write(f"Fetching data for {ticker} from {start_date} to {end_date}")
 
     with st.spinner('Fetching stock data...'):
         stock_data = get_stock_data(ticker, start_date, end_date)
@@ -168,22 +186,15 @@ def main():
         else:
             st.warning("ESG data not available for this stock.")
 
-        company_info = get_company_info(ticker)
+        with st.spinner('Fetching company information...'):
+            company_info = get_company_info(ticker)
+
         if company_info:
-            st.subheader("Company Information")
-            col1, col2 = st.columns(2)
-            col1.metric("Sector", company_info.get('sector', 'N/A'))
-            col2.metric("Industry", company_info.get('industry', 'N/A'))
-            col1.metric("Full Time Employees", company_info.get('fullTimeEmployees', 'N/A'))
-            col2.metric("Country", company_info.get('country', 'N/A'))
-            
-            st.subheader("Financial Metrics")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Market Cap", f"${company_info.get('marketCap', 'N/A'):,}")
-            col2.metric("Forward P/E", company_info.get('forwardPE', 'N/A'))
-            col3.metric("Dividend Yield", f"{company_info.get('dividendYield', 'N/A'):.2%}" if company_info.get('dividendYield') else 'N/A')
+            display_company_info(company_info)
+        else:
+            st.warning("Company information not available.")
     else:
-        st.error(f"Unable to fetch data for {ticker}. Please check the debug information above and try again.")
+        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
 
 if __name__ == "__main__":
     main()
