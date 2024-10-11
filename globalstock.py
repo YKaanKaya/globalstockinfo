@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from yesg import Yesg
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
@@ -20,9 +19,9 @@ def get_stock_data(ticker, start_date, end_date):
 
 def get_esg_data(ticker):
     try:
-        yesg = Yesg(ticker)
-        esg_data = yesg.sustainability
-        if esg_data is None:
+        stock = yf.Ticker(ticker)
+        esg_data = stock.sustainability
+        if esg_data is None or esg_data.empty:
             st.warning(f"No ESG data found for {ticker}")
             return None
         return esg_data
@@ -100,17 +99,8 @@ def display_returns_chart(data, ticker):
 
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Environment Score", f"{esg_data.get('environmentScore', 'N/A')}")
-    col2.metric("Social Score", f"{esg_data.get('socialScore', 'N/A')}")
-    col3.metric("Governance Score", f"{esg_data.get('governanceScore', 'N/A')}")
-    
-    col1, col2 = st.columns(2)
-    col1.metric("Total ESG Score", f"{esg_data.get('totalEsg', 'N/A')}")
-    col2.metric("ESG Performance", esg_data.get('esgPerformance', 'N/A'))
-    
-    st.subheader("ESG Details")
-    st.write(esg_data)
+    for index, row in esg_data.iterrows():
+        st.metric(index, f"{row.values[0]:.2f}")
 
 def display_company_info(info):
     st.subheader("Company Information")
