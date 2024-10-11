@@ -99,8 +99,74 @@ def display_returns_chart(data, ticker):
 
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
-    for index, row in esg_data.iterrows():
-        st.metric(index, f"{row.values[0]:.2f}")
+
+    # Convert the data to a more suitable format
+    esg_dict = {index: row.values[0] for index, row in esg_data.iterrows()}
+
+    # Create lists for each category
+    environmental = []
+    social = []
+    governance = []
+    other = []
+
+    for key, value in esg_dict.items():
+        if isinstance(value, (int, float)):
+            formatted_value = f"{value:.2f}"
+        else:
+            formatted_value = str(value)
+
+        if 'environment' in key.lower():
+            environmental.append((key, formatted_value))
+        elif 'social' in key.lower():
+            social.append((key, formatted_value))
+        elif 'governance' in key.lower():
+            governance.append((key, formatted_value))
+        else:
+            other.append((key, formatted_value))
+
+    # Create a figure with subplots
+    fig = go.Figure()
+
+    # Add traces for each category
+    categories = [
+        ('Environmental', environmental, 'green'),
+        ('Social', social, 'blue'),
+        ('Governance', governance, 'purple'),
+        ('Other', other, 'gray')
+    ]
+
+    for i, (category, data, color) in enumerate(categories):
+        if data:
+            y_positions = list(range(len(data)))
+            fig.add_trace(go.Bar(
+                y=[item[0] for item in data],
+                x=[float(item[1]) if item[1].replace('.', '').isdigit() else 0 for item in data],
+                orientation='h',
+                name=category,
+                marker_color=color,
+                text=[f"{item[0]}: {item[1]}" for item in data],
+                textposition='outside',
+                hoverinfo='text'
+            ))
+
+    # Update layout
+    fig.update_layout(
+        title="ESG Metrics",
+        height=600,
+        bargap=0.2,
+        bargroupgap=0.1,
+        barmode='stack',
+        showlegend=True,
+        xaxis_title="Score",
+        yaxis_title="Metric",
+    )
+
+    # Display the plot
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Display the raw data in a table
+    st.subheader("Raw ESG Data")
+    st.dataframe(esg_data)
 
 def display_company_info(info):
     st.subheader("Company Information")
