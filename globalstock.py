@@ -20,27 +20,23 @@ def get_stock_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
-def get_rapidapi_esg_data(ticker):
+def get_esg_data(ticker):
     api_key = os.environ.get('RAPIDAPI_KEY')
     if not api_key:
         st.error("RapidAPI key not found in environment variables.")
         return None
 
-    url = f"https://esg-environmental-social-governance-data.p.rapidapi.com/search"
-    querystring = {"q": ticker}
+    url = f"https://esg-risk-ratings-for-stocks.p.rapidapi.com/api/v1/resources/esg"
+    querystring = {"ticker": ticker}
     headers = {
         "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": "esg-environmental-social-governance-data.p.rapidapi.com"
+        "X-RapidAPI-Host": "esg-risk-ratings-for-stocks.p.rapidapi.com"
     }
     try:
         response = requests.get(url, headers=headers, params=querystring)
         response.raise_for_status()
         data = response.json()
-        if data and isinstance(data, list) and len(data) > 0:
-            return data[0]
-        else:
-            st.warning(f"No ESG data found for {ticker}. Response: {data}")
-            return None
+        return data
     except requests.RequestException as e:
         st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
         return None
@@ -117,15 +113,21 @@ def display_returns_chart(data, ticker):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_esg_data(esg_data):
-    st.subheader("ESG Data")
+    st.subheader("ESG Risk Ratings")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total ESG Risk Score", f"{esg_data['totalEsgRiskScore']:.2f}")
+    col2.metric("Environment Risk Score", f"{esg_data['environmentRiskScore']:.2f}")
+    col3.metric("Social Risk Score", f"{esg_data['socialRiskScore']:.2f}")
+    col4.metric("Governance Risk Score", f"{esg_data['governanceRiskScore']:.2f}")
+
+    st.subheader("ESG Risk Category")
+    st.write(esg_data['esgRiskCategory'])
+
+    st.subheader("ESG Performance")
     col1, col2, col3 = st.columns(3)
-    col1.metric("ESG Score", esg_data.get('esg_score', 'N/A'))
-    col2.metric("Environment Score", esg_data.get('environment_score', 'N/A'))
-    col3.metric("Social Score", esg_data.get('social_score', 'N/A'))
-    
-    col1, col2 = st.columns(2)
-    col1.metric("Governance Score", esg_data.get('governance_score', 'N/A'))
-    col2.metric("ESG Performance", esg_data.get('esg_performance', 'N/A'))
+    col1.metric("Environment Performance", esg_data['environmentPerformance'])
+    col2.metric("Social Performance", esg_data['socialPerformance'])
+    col3.metric("Governance Performance", esg_data['governancePerformance'])
 
 def display_company_info(info):
     st.subheader("Company Information")
@@ -178,7 +180,7 @@ def main():
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
 
         with st.spinner('Fetching ESG data...'):
-            esg_data = get_rapidapi_esg_data(ticker)
+            esg_data = get_esg_data(ticker)
 
         if esg_data:
             st.header(f"{ticker} ESG Analysis")
