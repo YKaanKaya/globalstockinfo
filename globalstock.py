@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import plotly.express as px
 import plotly.graph_objects as go
 import ticker_fetcher
+from base64 import b64encode
 
 def compute_cumulative_return(data):
     data['Cumulative Return'] = (1 + data['Adj Close'].pct_change()).cumprod()
@@ -15,8 +16,7 @@ def compute_moving_averages(data, windows=[50, 200]):
     for window in windows:
         data[f'MA{window}'] = data['Adj Close'].rolling(window=window).mean()
     return data
-    
-# Scrape the ESG data
+
 @st.cache
 def get_esg_data_with_headers_and_error_handling(ticker):
     headers = {
@@ -62,8 +62,9 @@ def get_esg_data_with_headers_and_error_handling(ticker):
 
     return result
 
-# Function to map ESG risk score to risk level
 def map_esg_risk_to_level(score):
+    if score is None or not isinstance(score, (int, float)):
+        return "Unknown"
     if score < 10:
         return "Very Low"
     elif 10 <= score < 20:
@@ -85,9 +86,9 @@ def display_esg_data_table(selected_symbols, esg_data_list):
 def display_risk_levels(tickers, esg_scores):
     st.write("### ESG Risk Levels:")
     st.write("Visualize how the selected tickers rank in terms of ESG risk. This can give insights into potential sustainability challenges the company may face, lower better.")
-    risk_levels = ["Very Low", "Low", "Medium", "High", "Severe"]
-    score_ranges = [5, 15, 25, 35, 45]
-    colors = ["#FFEDCC", "#FFDB99", "#FFC266", "#FF9900", "#FF6600"]
+    risk_levels = ["Unknown", "Very Low", "Low", "Medium", "High", "Severe"]
+    score_ranges = [0, 5, 15, 25, 35, 45]
+    colors = ["#808080", "#FFEDCC", "#FFDB99", "#FFC266", "#FF9900", "#FF6600"]
 
     df = pd.DataFrame({
         'Risk Level': risk_levels,
@@ -99,12 +100,13 @@ def display_risk_levels(tickers, esg_scores):
                  color_discrete_map=dict(zip(df['Color'], df['Color'])))
 
     for ticker, score in zip(tickers, esg_scores):
-        score_position = risk_levels.index(map_esg_risk_to_level(score))
-        annotation_x = df.loc[score_position, 'Score Range'] - 3
+        risk_level = map_esg_risk_to_level(score)
+        score_position = risk_levels.index(risk_level)
+        annotation_x = df.loc[score_position, 'Score Range']
         fig.add_annotation(
             x=annotation_x,
             y=risk_levels[score_position],
-            text=f"{ticker}: {score}",
+            text=f"{ticker}: {score if score is not None else 'N/A'}",
             showarrow=False,
             font=dict(color='black', size=12),
             xshift=10
@@ -125,10 +127,8 @@ def display_risk_levels(tickers, esg_scores):
 def display_stock_price_chart(data, ticker):
     fig = go.Figure()
 
-    # Plotting adjusted close price
     fig.add_trace(go.Scatter(x=data.index, y=data['Adj Close'], mode='lines', name='Adj Close'))
     
-    # Plotting moving averages
     for window in [50, 200]:
         fig.add_trace(go.Scatter(x=data.index, y=data[f'MA{window}'], mode='lines', name=f'MA{window}'))
     
@@ -154,46 +154,36 @@ initial_load = True
 
 def main():
     st.title("Financial Data Application")
-    # Introduction and overview of the application    
     st.markdown("Welcome to the Financial Data Application. This platform enables you to fetch stock price data for publicly traded companies, visualize key metrics, and delve into ESG (Environmental, Social, and Governance) data. Whether you're a professional investor, a student, or just curious about the stock market, this tool is designed to be both informative and intuitive.")
     st.markdown("With this foundation, feel free to explore the various features of the application. Happy investing!")
    
-    # Explanatory text for ticker selection    
     st.sidebar.markdown("### Stock Ticker Selection")    
     default_tickers = ["AAPL"]
     
-    # Predefined tickers for multiselect
     common_tickers = ticker_fetcher.get_tickers()
     st.sidebar.markdown("**Select one or more stock tickers from the predefined list below.**")
     st.sidebar.markdown("_These represent the stock symbols for publicly traded companies._")
     selected_from_predefined = st.sidebar.multiselect("Select Tickers from List:", common_tickers, default=default_tickers)
 
-    # Allow users to input their own tickers
     st.sidebar.markdown("**If you can't find your desired stock ticker in the list, or prefer to manually enter them, you can type them below.**")
     st.sidebar.markdown("_Separate multiple tickers with commas._")
     custom_tickers_input = st.sidebar.text_input("Or enter custom tickers (comma separated):")
     custom_tickers = [ticker.strip().upper() for ticker in custom_tickers_input.split(',') if ticker.strip()]
 
-    # Combine both lists, ensuring no duplicates
     selected_tickers = list(set(selected_from_predefined + custom_tickers))
 
-    # Explanatory text for time period and interval
     st.sidebar.markdown("### Time Settings")
     st.sidebar.markdown("Set the range (`Time Period`) and granularity (`Time Interval`) of the stock data. For example, a '1y' period with a '1mo' interval shows monthly data points over a year.")
     period = st.sidebar.selectbox("Select Time Period:", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"])
     interval = st.sidebar.selectbox("Select Time Interval:", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"])
    
-    # Explanatory text for ESG data and risk levels
     st.sidebar.markdown("### ESG Data")    
     display_esg = st.sidebar.checkbox("Display ESG data", True)   
     display_esg_risk_levels = st.sidebar.checkbox("Display ESG risk levels", True)
     
-    # Explanatory text for data download
     st.sidebar.markdown("### Data Export")
     download_link = st.sidebar.button("Download Data as CSV")
    
-    # This is how you can use the refresh_data button to force data fetching
-    # Explanatory text for data refresh
     st.sidebar.markdown("### Refresh Data")
     refresh_data = st.sidebar.button("Refresh Data")
     
@@ -224,49 +214,47 @@ def main():
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
 
-        # Concatenate data frames for displaying and downloading
         st.write("### Stock Data Overview")
         final_data = pd.concat(data_dict.values())
         st.dataframe(final_data)
         
-        # Explanation about moving averages
         st.markdown("### Moving Averages")
         st.markdown("A **moving average** smoothens price data to create a single flowing line, which makes it easier to identify the direction of the trend. The two commonly used moving averages displayed here are:")
         st.markdown("- **50-day moving average (MA50)**: This is the average of the closing prices over the last 50 days. It's a shorter-term moving average, and its crossover with longer-term MAs can signal potential buy or sell opportunities.")
         st.markdown("- **200-day moving average (MA200)**: Represents the average of the closing prices over the last 200 days. It's used to gauge the overall trend of the stock. Stocks trading above their 200-day moving average are often considered in an uptrend, and those below are considered in a downtrend.")
         
-        # Explanation about cumulative returns
         st.markdown("### Cumulative Returns")
         st.markdown("The **cumulative return** is the entire amount of money an investment has made for an investor, irrespective of time. It's a raw measurement on how well (or poorly) the investment did. Here's how to interpret it:")
         st.markdown("- A cumulative return of 1.0 indicates that the investment's value hasn't changed.")
         st.markdown("- A number above 1.0 indicates a profit. For example, 1.5 means the investment has returned 150% of its initial value.")
         st.markdown("- A number less than 1.0 indicates a loss. For example, 0.8 means the investment has returned only 80% of its initial value, representing a 20% loss.")
                         
-        # New visualizations
         for ticker in selected_tickers:
             if ticker in data_dict:
                 display_stock_price_chart(data_dict[ticker], ticker)
                 if display_esg:
                     esg_data = get_esg_data_with_headers_and_error_handling(ticker)
-                    if esg_data["Total ESG risk score"] is not None:
+                    if esg_data and esg_data["Total ESG risk score"] is not None:
                         display_esg_score_progress_bar(ticker, esg_data["Total ESG risk score"])
 
         if display_esg:
             display_esg_data_table(selected_tickers, esg_data_list)     
 
         if display_esg_risk_levels:
-            esg_scores = [data["Total ESG risk score"] for data in esg_data_list]
+            st.write("Debug: Raw ESG data")
+            for ticker, data in zip(selected_tickers, esg_data_list):
+                st.write(f"{ticker}: {data}")
+            
+            esg_scores = [data.get("Total ESG risk score") if data else None for data in esg_data_list]
             display_risk_levels(selected_tickers, esg_scores)
-       
 
         if download_link:
-                try:
-                    csv = final_data.to_csv(index=False)
-                    b64 = b64encode(csv.encode()).decode()
-                    st.markdown(f"### Download Data as CSV:\n[Download Link](data:file/csv;base64,{b64})")
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+            try:
+                csv = final_data.to_csv(index=False)
+                b64 = b64encode(csv.encode()).decode()
+                st.markdown(f"### Download Data as CSV:\n[Download Link](data:file/csv;base64,{b64})")
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    from base64 import b64encode
     main()
