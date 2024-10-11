@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import http.client
 import json
+import os
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -19,7 +20,12 @@ def get_stock_data(ticker, start_date, end_date):
         st.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
-def get_rapidapi_esg_data(ticker, api_key):
+def get_rapidapi_esg_data(ticker):
+    api_key = os.environ.get('RAPIDAPI_KEY')
+    if not api_key:
+        st.error("RapidAPI key not found. Please set the RAPIDAPI_KEY environment variable.")
+        return None
+
     conn = http.client.HTTPSConnection("esg-risk-ratings-for-stocks.p.rapidapi.com")
     headers = {
         'x-rapidapi-key': api_key,
@@ -122,8 +128,6 @@ def main():
     st.title("Advanced Financial Data Dashboard")
     st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
 
-    rapidapi_key = st.sidebar.text_input("Enter RapidAPI Key", type="password", value="94d4026da3msh79c592bbd7ccde4p142e2cjsn3e859926e190")
-
     st.sidebar.header("Configure Your Analysis")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
     period = st.sidebar.selectbox("Select Time Period", 
@@ -155,17 +159,14 @@ def main():
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
 
-        if rapidapi_key:
-            with st.spinner('Fetching ESG data...'):
-                esg_data = get_rapidapi_esg_data(ticker, rapidapi_key)
+        with st.spinner('Fetching ESG data...'):
+            esg_data = get_rapidapi_esg_data(ticker)
 
-            if esg_data:
-                st.header(f"{ticker} ESG Analysis")
-                display_esg_data(esg_data)
-            else:
-                st.warning("ESG data not available for this stock.")
+        if esg_data:
+            st.header(f"{ticker} ESG Analysis")
+            display_esg_data(esg_data)
         else:
-            st.warning("Please enter a RapidAPI key to fetch ESG data.")
+            st.warning("ESG data not available for this stock.")
 
         company_info = get_company_info(ticker)
         if company_info:
