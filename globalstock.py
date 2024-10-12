@@ -100,69 +100,47 @@ def display_returns_chart(data, ticker):
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
 
-    # Convert the data to a more suitable format
-    esg_dict = {index: row.values[0] for index, row in esg_data.iterrows()}
+    # Select relevant numeric ESG metrics
+    relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
+    numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
 
-    # Create lists for each category
-    environmental = []
-    social = []
-    governance = []
-    other = []
-
-    for key, value in esg_dict.items():
-        if isinstance(value, (int, float)):
-            formatted_value = f"{value:.2f}"
-        else:
-            formatted_value = str(value)
-
-        if 'environment' in key.lower():
-            environmental.append((key, formatted_value))
-        elif 'social' in key.lower():
-            social.append((key, formatted_value))
-        elif 'governance' in key.lower():
-            governance.append((key, formatted_value))
-        else:
-            other.append((key, formatted_value))
-
-    # Create a figure with subplots
+    # Create a bar chart for the main ESG scores
     fig = go.Figure()
+    colors = {'totalEsg': 'purple', 'environmentScore': 'green', 'socialScore': 'blue', 'governanceScore': 'orange'}
 
-    # Add traces for each category
-    categories = [
-        ('Environmental', environmental, 'green'),
-        ('Social', social, 'blue'),
-        ('Governance', governance, 'purple'),
-        ('Other', other, 'gray')
-    ]
+    for metric in numeric_data.index:
+        fig.add_trace(go.Bar(
+            x=[metric],
+            y=[numeric_data.loc[metric].values[0]],
+            name=metric,
+            marker_color=colors.get(metric, 'gray')
+        ))
 
-    for i, (category, data, color) in enumerate(categories):
-        if data:
-            y_positions = list(range(len(data)))
-            fig.add_trace(go.Bar(
-                y=[item[0] for item in data],
-                x=[float(item[1]) if item[1].replace('.', '').isdigit() else 0 for item in data],
-                orientation='h',
-                name=category,
-                marker_color=color,
-                text=[f"{item[0]}: {item[1]}" for item in data],
-                textposition='outside',
-                hoverinfo='text'
-            ))
-
-    # Update layout
     fig.update_layout(
-        title="ESG Metrics",
-        height=600,
-        bargap=0.2,
-        bargroupgap=0.1,
-        barmode='stack',
-        showlegend=True,
-        xaxis_title="Score",
-        yaxis_title="Metric",
+        title="ESG Scores",
+        yaxis_title="Score",
+        height=400,
+        showlegend=False
     )
 
-    # Display the plot
     st.plotly_chart(fig, use_container_width=True)
+
+    # Display key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total ESG", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
+    col2.metric("Environment", f"{esg_data.loc['environmentScore'].values[0]:.2f}")
+    col3.metric("Social", f"{esg_data.loc['socialScore'].values[0]:.2f}")
+    col4.metric("Governance", f"{esg_data.loc['governanceScore'].values[0]:.2f}")
+
+    # Display additional relevant information
+    st.subheader("Additional ESG Information")
+    additional_info = {
+        'ESG Performance': esg_data.loc['esgPerformance'].values[0],
+        'Highest Controversy': esg_data.loc['highestControversy'].values[0],
+        'Rating Year': esg_data.loc['ratingYear'].values[0],
+        'Rating Month': esg_data.loc['ratingMonth'].values[0]
+    }
+    st.table(pd.DataFrame.from_dict(additional_info, orient='index', columns=['Value']))
 
     # Display the raw data in a table
     st.subheader("Raw ESG Data")
@@ -188,7 +166,7 @@ def main():
     st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
 
     st.sidebar.header("Configure Your Analysis")
-    ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
+    ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
     period = st.sidebar.selectbox("Select Time Period", 
                                   options=["1M", "3M", "6M", "1Y", "2Y", "5Y"],
                                   format_func=lambda x: f"{x[:-1]} {'Month' if x[-1]=='M' else 'Year'}{'s' if x[:-1]!='1' else ''}",
