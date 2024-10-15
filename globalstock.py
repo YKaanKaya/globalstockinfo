@@ -4,6 +4,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import requests
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -100,11 +101,9 @@ def display_returns_chart(data, ticker):
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
 
-    # Select relevant numeric ESG metrics
     relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
     numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
 
-    # Create a bar chart for the main ESG scores
     fig = go.Figure()
     colors = {'totalEsg': 'purple', 'environmentScore': 'green', 'socialScore': 'blue', 'governanceScore': 'orange'}
 
@@ -125,14 +124,12 @@ def display_esg_data(esg_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total ESG", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
     col2.metric("Environment", f"{esg_data.loc['environmentScore'].values[0]:.2f}")
     col3.metric("Social", f"{esg_data.loc['socialScore'].values[0]:.2f}")
     col4.metric("Governance", f"{esg_data.loc['governanceScore'].values[0]:.2f}")
 
-    # Display additional relevant information
     st.subheader("Additional ESG Information")
     additional_info = {
         'ESG Performance': esg_data.loc['esgPerformance'].values[0],
@@ -142,28 +139,64 @@ def display_esg_data(esg_data):
     }
     st.table(pd.DataFrame.from_dict(additional_info, orient='index', columns=['Value']))
 
-    # Display the raw data in a table
     st.subheader("Raw ESG Data")
     st.dataframe(esg_data)
 
 def display_company_info(info):
     st.subheader("Company Information")
     col1, col2 = st.columns(2)
-    col1.metric("Sector", info.get('sector', 'N/A'))
-    col2.metric("Industry", info.get('industry', 'N/A'))
-    col1.metric("Full Time Employees", info.get('fullTimeEmployees', 'N/A'))
-    col2.metric("Country", info.get('country', 'N/A'))
+    with col1:
+        st.metric("Sector", info.get('sector', 'N/A'))
+        st.metric("Full Time Employees", f"{info.get('fullTimeEmployees', 'N/A'):,}")
+    with col2:
+        st.metric("Industry", info.get('industry', 'N/A'))
+        st.metric("Country", info.get('country', 'N/A'))
     
     st.subheader("Financial Metrics")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
-    col2.metric("Forward P/E", round(info.get('forwardPE', 'N/A'), 2) if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
-    col3.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+    with col1:
+        st.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,.0f}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
+    with col2:
+        st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A'):.2f}" if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
+    with col3:
+        st.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+
+def get_news(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news
+        return news
+    except Exception as e:
+        st.error(f"Error fetching news for {ticker}: {str(e)}")
+        return None
+
+def display_news(news):
+    st.subheader("Latest News")
+    for article in news[:5]:  # Display top 5 news articles
+        st.write(f"**{article['title']}**")
+        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
+        st.write(article['link'])
+        st.write("---")
+
+def get_recommendations(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        return stock.recommendations
+    except Exception as e:
+        st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
+        return None
+
+def display_recommendations(recommendations):
+    if recommendations is not None and not recommendations.empty:
+        st.subheader("Analyst Recommendations")
+        st.dataframe(recommendations.tail(10))  # Display last 10 recommendations
+    else:
+        st.warning("No analyst recommendations available.")
 
 def main():
     st.set_page_config(layout="wide")
     st.title("Advanced Financial Data Dashboard")
-    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
+    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, company information, news, and analyst recommendations.")
 
     st.sidebar.header("Configure Your Analysis")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
@@ -177,25 +210,31 @@ def main():
 
     st.write(f"Fetching data for {ticker} from {start_date} to {end_date}")
 
-    with st.spinner('Fetching stock data...'):
-        stock_data = get_stock_data(ticker, start_date, end_date)
+    tab1, tab2, tab3, tab4 = st.tabs(["Stock Analysis", "ESG Analysis", "Company Info", "News & Recommendations"])
 
-    if stock_data is not None and not stock_data.empty:
-        stock_data = compute_returns(stock_data)
-        stock_data = compute_moving_averages(stock_data)
+    with tab1:
+        with st.spinner('Fetching stock data...'):
+            stock_data = get_stock_data(ticker, start_date, end_date)
 
-        st.header(f"{ticker} Stock Analysis")
-        display_stock_chart(stock_data, ticker)
+        if stock_data is not None and not stock_data.empty:
+            stock_data = compute_returns(stock_data)
+            stock_data = compute_moving_averages(stock_data)
 
-        st.header(f"{ticker} Returns Analysis")
-        display_returns_chart(stock_data, ticker)
+            st.header(f"{ticker} Stock Analysis")
+            display_stock_chart(stock_data, ticker)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
-                    f"{stock_data['Daily Return'].iloc[-1]:.2%}")
-        col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
-        col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
+            st.header(f"{ticker} Returns Analysis")
+            display_returns_chart(stock_data, ticker)
 
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
+                        f"{stock_data['Daily Return'].iloc[-1]:.2%}")
+            col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
+            col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
+        else:
+            st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
+    with tab2:
         with st.spinner('Fetching ESG data...'):
             esg_data = get_esg_data(ticker)
 
@@ -205,6 +244,7 @@ def main():
         else:
             st.warning("ESG data not available for this stock.")
 
+    with tab3:
         with st.spinner('Fetching company information...'):
             company_info = get_company_info(ticker)
 
@@ -212,8 +252,24 @@ def main():
             display_company_info(company_info)
         else:
             st.warning("Company information not available.")
-    else:
-        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
+    with tab4:
+        col1, col2 = st.columns(2)
+        with col1:
+            with st.spinner('Fetching news...'):
+                news = get_news(ticker)
+            if news:
+                display_news(news)
+            else:
+                st.warning("No news available for this stock.")
+        
+        with col2:
+            with st.spinner('Fetching recommendations...'):
+                recommendations = get_recommendations(ticker)
+            if recommendations is not None:
+                display_recommendations(recommendations)
+            else:
+                st.warning("No recommendations available for this stock.")
 
 if __name__ == "__main__":
     main()
