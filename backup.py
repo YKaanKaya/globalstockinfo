@@ -4,6 +4,9 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import requests
+from textblob import TextBlob
+import numpy as np
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -76,7 +79,7 @@ def display_stock_chart(data, ticker):
         yaxis_title='Stock Price',
         xaxis_rangeslider_visible=False,
         height=800,
-        showlegend=False
+        showlegend=True
     )
 
     fig.update_yaxes(title_text="Volume", row=2, col=1)
@@ -85,26 +88,20 @@ def display_stock_chart(data, ticker):
 
 def display_returns_chart(data, ticker):
     fig = go.Figure()
-
     fig.add_trace(go.Scatter(x=data.index, y=data['Cumulative Return'], mode='lines', name='Cumulative Return'))
-
     fig.update_layout(
         title=f'{ticker} Cumulative Returns',
         yaxis_title='Cumulative Return',
         xaxis_title='Date',
         height=500
     )
-
     st.plotly_chart(fig, use_container_width=True)
 
 def display_esg_data(esg_data):
     st.subheader("ESG Data")
-
-    # Select relevant numeric ESG metrics
     relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
     numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
 
-    # Create a bar chart for the main ESG scores
     fig = go.Figure()
     colors = {'totalEsg': 'purple', 'environmentScore': 'green', 'socialScore': 'blue', 'governanceScore': 'orange'}
 
@@ -125,14 +122,12 @@ def display_esg_data(esg_data):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total ESG", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
     col2.metric("Environment", f"{esg_data.loc['environmentScore'].values[0]:.2f}")
     col3.metric("Social", f"{esg_data.loc['socialScore'].values[0]:.2f}")
     col4.metric("Governance", f"{esg_data.loc['governanceScore'].values[0]:.2f}")
 
-    # Display additional relevant information
     st.subheader("Additional ESG Information")
     additional_info = {
         'ESG Performance': esg_data.loc['esgPerformance'].values[0],
@@ -142,30 +137,150 @@ def display_esg_data(esg_data):
     }
     st.table(pd.DataFrame.from_dict(additional_info, orient='index', columns=['Value']))
 
-    # Display the raw data in a table
-    st.subheader("Raw ESG Data")
-    st.dataframe(esg_data)
-
 def display_company_info(info):
     st.subheader("Company Information")
     col1, col2 = st.columns(2)
-    col1.metric("Sector", info.get('sector', 'N/A'))
-    col2.metric("Industry", info.get('industry', 'N/A'))
-    col1.metric("Full Time Employees", info.get('fullTimeEmployees', 'N/A'))
-    col2.metric("Country", info.get('country', 'N/A'))
+    with col1:
+        st.metric("Sector", info.get('sector', 'N/A'))
+        st.metric("Full Time Employees", f"{info.get('fullTimeEmployees', 'N/A'):,}")
+    with col2:
+        st.metric("Industry", info.get('industry', 'N/A'))
+        st.metric("Country", info.get('country', 'N/A'))
     
     st.subheader("Financial Metrics")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
-    col2.metric("Forward P/E", round(info.get('forwardPE', 'N/A'), 2) if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
-    col3.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+    with col1:
+        st.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,.0f}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
+    with col2:
+        st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A'):.2f}" if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
+    with col3:
+        st.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+
+def get_news(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news
+        return news
+    except Exception as e:
+        st.error(f"Error fetching news for {ticker}: {str(e)}")
+        return None
+
+def display_news(news):
+    st.subheader("Latest News")
+    for article in news[:5]:  # Display top 5 news articles
+        st.write(f"**{article['title']}**")
+        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
+        st.write(article['link'])
+        st.write("---")
+
+def get_recommendations(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        return stock.recommendations
+    except Exception as e:
+        st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
+        return None
+
+def display_recommendations(recommendations):
+    if recommendations is not None and not recommendations.empty:
+        st.subheader("Analyst Recommendations")
+        
+        last_4_periods = recommendations.groupby('period').last().tail(4)
+        
+        fig = go.Figure()
+        categories = ['strongSell', 'sell', 'hold', 'buy', 'strongBuy']
+        colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
+        
+        for category, color in zip(categories, colors):
+            fig.add_trace(go.Bar(
+                x=last_4_periods.index,
+                y=last_4_periods[category],
+                name=category.capitalize(),
+                marker_color=color
+            ))
+        
+        fig.update_layout(
+            title="Analyst Recommendations (Last 4 Periods)",
+            xaxis_title="Period",
+            yaxis_title="Number of Analysts",
+            barmode='stack',
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.write("Raw Recommendation Data:")
+        st.dataframe(recommendations.tail(10))  # Display last 10 recommendations
+    else:
+        st.warning("No analyst recommendations available.")
+
+def get_sentiment_score(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news[:10]  # Get latest 10 news items
+        sentiment_scores = []
+        for article in news:
+            blob = TextBlob(article['title'])
+            sentiment_scores.append(blob.sentiment.polarity)
+        return np.mean(sentiment_scores)
+    except Exception as e:
+        st.error(f"Error calculating sentiment for {ticker}: {str(e)}")
+        return None
+
+def get_competitors(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        sector = stock.info.get('sector')
+        industry = stock.info.get('industry')
+        if sector and industry:
+            competitors = yf.Ticker(sector).info.get('componentsSymbols', [])
+            return [comp for comp in competitors if comp != ticker][:5]  # Return top 5 competitors
+        return []
+    except Exception as e:
+        st.error(f"Error fetching competitors for {ticker}: {str(e)}")
+        return []
+
+def compare_performance(ticker, competitors):
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
+        returns = data.pct_change().cumsum()
+        return returns
+    except Exception as e:
+        st.error(f"Error comparing performance: {str(e)}")
+        return None
+
+def create_comparison_chart(comparison_data):
+    fig = go.Figure()
+    for column in comparison_data.columns:
+        fig.add_trace(go.Scatter(x=comparison_data.index, y=comparison_data[column], mode='lines', name=column))
+    fig.update_layout(title="1 Year Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Returns")
+    return fig
+
+def get_innovation_metrics(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        r_and_d = stock.info.get('researchAndDevelopment', 0)
+        revenue = stock.info.get('totalRevenue', 1)  # Avoid division by zero
+        r_and_d_intensity = (r_and_d / revenue) * 100 if revenue else 0
+        return {
+            'R&D Spending': r_and_d,
+            'R&D Intensity': r_and_d_intensity
+        }
+    except Exception as e:
+        st.error(f"Error fetching innovation metrics for {ticker}: {str(e)}")
+        return None
+
+def create_innovation_chart(innovation_data):
+    fig = go.Figure(data=[go.Bar(x=list(innovation_data.keys()), y=list(innovation_data.values()))])
+    fig.update_layout(title="Innovation Metrics", xaxis_title="Metric", yaxis_title="Value")
+    return fig
 
 def main():
-    st.set_page_config(layout="wide")
-    st.title("Advanced Financial Data Dashboard")
-    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, and company information.")
-
-    st.sidebar.header("Configure Your Analysis")
+    st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
+    
+    st.sidebar.title("Stock Analysis Dashboard")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
     period = st.sidebar.selectbox("Select Time Period", 
                                   options=["1M", "3M", "6M", "1Y", "2Y", "5Y"],
@@ -175,45 +290,91 @@ def main():
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
-    st.write(f"Fetching data for {ticker} from {start_date} to {end_date}")
+    st.title(f"{ticker} Enhanced Stock Analysis Dashboard")
+    st.write(f"Analyzing data from {start_date} to {end_date}")
 
-    with st.spinner('Fetching stock data...'):
+    with st.spinner('Fetching data...'):
         stock_data = get_stock_data(ticker, start_date, end_date)
+        esg_data = get_esg_data(ticker)
+        company_info = get_company_info(ticker)
+        news = get_news(ticker)
+        recommendations = get_recommendations(ticker)
+        sentiment_score = get_sentiment_score(ticker)
+        competitors = get_competitors(ticker)
+        comparison_data = compare_performance(ticker, competitors)
+        innovation_data = get_innovation_metrics(ticker)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
         stock_data = compute_moving_averages(stock_data)
 
-        st.header(f"{ticker} Stock Analysis")
-        display_stock_chart(stock_data, ticker)
-
-        st.header(f"{ticker} Returns Analysis")
-        display_returns_chart(stock_data, ticker)
-
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
                     f"{stock_data['Daily Return'].iloc[-1]:.2%}")
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
-
-        with st.spinner('Fetching ESG data...'):
-            esg_data = get_esg_data(ticker)
-
         if esg_data is not None:
-            st.header(f"{ticker} ESG Analysis")
-            display_esg_data(esg_data)
-        else:
-            st.warning("ESG data not available for this stock.")
+            col4.metric("ESG Score", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
+        if sentiment_score is not None:
+            col5.metric("Sentiment Score", f"{sentiment_score:.2f}")
 
-        with st.spinner('Fetching company information...'):
-            company_info = get_company_info(ticker)
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Recommendations", "🔍 Unique Insights"])
 
-        if company_info:
-            display_company_info(company_info)
-        else:
-            st.warning("Company information not available.")
+        with tab1:
+            st.header("Stock Price Analysis")
+            display_stock_chart(stock_data, ticker)
+            st.header("Returns Analysis")
+            display_returns_chart(stock_data, ticker)
+
+        with tab2:
+            if esg_data is not None:
+                display_esg_data(esg_data)
+            else:
+                st.warning("ESG data not available for this stock.")
+
+        with tab3:
+            if company_info:
+                display_company_info(company_info)
+            else:
+                st.warning("Company information not available.")
+
+        with tab4:
+            col1, col2 = st.columns(2)
+            with col1:
+                if news:
+                    display_news(news)
+                else:
+                    st.warning("No recent news available for this stock.")
+            
+            with col2:
+                if recommendations is not None:
+                    display_recommendations(recommendations)
+                else:
+                    st.warning("No analyst recommendations available for this stock.")
+
+        with tab5:
+            st.header("Unique Insights")
+            
+            if comparison_data is not None and not comparison_data.empty:
+                st.subheader("Competitor Comparison")
+                st.plotly_chart(create_comparison_chart(comparison_data), use_container_width=True)
+            else:
+                st.warning("Competitor comparison data not available.")
+            
+            if innovation_data:
+                st.subheader("Innovation Metrics")
+                col1, col2 = st.columns(2)
+                col1.metric("R&D Spending", f"${innovation_data['R&D Spending']:,.0f}")
+                col2.metric("R&D Intensity", f"{innovation_data['R&D Intensity']:.2f}%")
+                st.plotly_chart(create_innovation_chart(innovation_data), use_container_width=True)
+            else:
+                st.warning("Innovation metrics not available for this stock.")
+
     else:
         st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
+    st.markdown("---")
+    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
