@@ -7,70 +7,65 @@ from datetime import datetime, timedelta
 from textblob import TextBlob
 import numpy as np
 
+# Error handling decorator
+def handle_errors(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            st.error(f"An error occurred in {func.__name__}: {str(e)}")
+            return None
+    return wrapper
+
+@handle_errors
 def get_stock_data(ticker, start_date, end_date):
-    try:
-        stock = yf.Ticker(ticker)
-        df = stock.history(start=start_date, end=end_date)
-        if df.empty:
-            st.error(f"No data available for {ticker} in the selected date range.")
-            return None
-        return df
-    except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {str(e)}")
+    stock = yf.Ticker(ticker)
+    df = stock.history(start=start_date, end=end_date)
+    if df.empty:
+        st.warning(f"No data available for {ticker} in the selected date range.")
         return None
+    return df
 
+@handle_errors
 def get_esg_data(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        esg_data = stock.sustainability
-        if esg_data is None or esg_data.empty:
-            st.warning(f"No ESG data found for {ticker}")
-            return None
-        return esg_data
-    except Exception as e:
-        st.error(f"Error fetching ESG data for {ticker}: {str(e)}")
+    stock = yf.Ticker(ticker)
+    esg_data = stock.sustainability
+    if esg_data is None or esg_data.empty:
+        st.info(f"No ESG data found for {ticker}")
         return None
+    return esg_data
 
+@handle_errors
 def get_company_info(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        info = {
-            'sector': stock.info.get('sector', 'N/A'),
-            'industry': stock.info.get('industry', 'N/A'),
-            'fullTimeEmployees': stock.info.get('fullTimeEmployees', 'N/A'),
-            'country': stock.info.get('country', 'N/A'),
-            'marketCap': stock.info.get('marketCap', 'N/A'),
-            'forwardPE': stock.info.get('forwardPE', 'N/A'),
-            'dividendYield': stock.info.get('dividendYield', 'N/A')
-        }
-        return info
-    except Exception as e:
-        st.error(f"Error fetching company info for {ticker}: {str(e)}")
-        return None
+    stock = yf.Ticker(ticker)
+    info = {
+        'sector': stock.info.get('sector', 'N/A'),
+        'industry': stock.info.get('industry', 'N/A'),
+        'fullTimeEmployees': stock.info.get('fullTimeEmployees', 'N/A'),
+        'country': stock.info.get('country', 'N/A'),
+        'marketCap': stock.info.get('marketCap', 'N/A'),
+        'forwardPE': stock.info.get('forwardPE', 'N/A'),
+        'dividendYield': stock.info.get('dividendYield', 'N/A')
+    }
+    return info
 
+@handle_errors
 def get_competitors(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        sector = stock.info.get('sector')
-        industry = stock.info.get('industry')
-        if sector and industry:
-            competitors = yf.Ticker(sector).info.get('componentsSymbols', [])
-            return [comp for comp in competitors if comp != ticker][:5]  # Return top 5 competitors
-        return []
-    except Exception as e:
-        st.error(f"Error fetching competitors for {ticker}: {str(e)}")
-        return []
+    stock = yf.Ticker(ticker)
+    sector = stock.info.get('sector')
+    industry = stock.info.get('industry')
+    if sector and industry:
+        competitors = yf.Ticker(sector).info.get('componentsSymbols', [])
+        return [comp for comp in competitors if comp != ticker][:5]  # Return top 5 competitors
+    return []
 
+@handle_errors
 def compare_performance(ticker, competitors):
-    try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=365)
-        data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
-        returns = data.pct_change().cumsum()
-        return returns
-    except Exception as e:
-        st.error(f"Error comparing performance: {str(e)}")
-        return None
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365)
+    data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
+    returns = data.pct_change().cumsum()
+    return returns
 
 def create_comparison_chart(comparison_data):
     fig = go.Figure()
@@ -79,32 +74,26 @@ def create_comparison_chart(comparison_data):
     fig.update_layout(title="1 Year Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Returns")
     return fig
 
+@handle_errors
 def get_innovation_metrics(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        r_and_d = stock.info.get('researchAndDevelopment', 0)
-        revenue = stock.info.get('totalRevenue', 1)  # Avoid division by zero
-        r_and_d_intensity = (r_and_d / revenue) * 100 if revenue else 0
-        return {
-            'R&D Spending': r_and_d,
-            'R&D Intensity': r_and_d_intensity
-        }
-    except Exception as e:
-        st.error(f"Error fetching innovation metrics for {ticker}: {str(e)}")
-        return None
+    stock = yf.Ticker(ticker)
+    r_and_d = stock.info.get('researchAndDevelopment', 0)
+    revenue = stock.info.get('totalRevenue', 1)  # Avoid division by zero
+    r_and_d_intensity = (r_and_d / revenue) * 100 if revenue else 0
+    return {
+        'R&D Spending': r_and_d,
+        'R&D Intensity': r_and_d_intensity
+    }
 
 def create_innovation_chart(innovation_data):
     fig = go.Figure(data=[go.Bar(x=list(innovation_data.keys()), y=list(innovation_data.values()))])
     fig.update_layout(title="Innovation Metrics", xaxis_title="Metric", yaxis_title="Value")
     return fig
 
+@handle_errors
 def get_recommendations(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        return stock.recommendations
-    except Exception as e:
-        st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
-        return None
+    stock = yf.Ticker(ticker)
+    return stock.recommendations
 
 def display_recommendations(recommendations):
     if recommendations is not None and not recommendations.empty:
@@ -137,18 +126,15 @@ def display_recommendations(recommendations):
         st.write("Raw Recommendation Data:")
         st.dataframe(recommendations.tail(10))  # Display last 10 recommendations
     else:
-        st.warning("No analyst recommendations available.")
+        st.info("No analyst recommendations available.")
 
+@handle_errors
 def get_sentiment_score(news):
-    try:
-        sentiment_scores = []
-        for article in news:
-            blob = TextBlob(article['title'])
-            sentiment_scores.append(blob.sentiment.polarity)
-        return np.mean(sentiment_scores)
-    except Exception as e:
-        st.error(f"Error calculating sentiment for news: {str(e)}")
-        return None
+    sentiment_scores = []
+    for article in news:
+        blob = TextBlob(article['title'])
+        sentiment_scores.append(blob.sentiment.polarity)
+    return np.mean(sentiment_scores)
 
 def display_sentiment_trend(news):
     sentiment_data = []
@@ -295,7 +281,7 @@ def main():
                     f"{stock_data['Daily Return'].iloc[-1]:.2%}")
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
-        if esg_data is not None:
+        if esg_data is not None and 'totalEsg' in esg_data.index:
             col4.metric("ESG Score", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
         
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 Sentiment Analysis", "🏢 Competitor Comparison", "📊 Analyst Recommendations"])
@@ -310,29 +296,38 @@ def main():
             if esg_data is not None:
                 display_esg_data(esg_data)
             else:
-                st.warning("ESG data not available for this stock.")
+                st.info("ESG data not available for this stock.")
 
         with tab3:
             if company_info:
                 display_company_info(company_info)
             else:
-                st.warning("Company information not available.")
+                st.info("Company information not available.")
 
         with tab4:
             if news:
                 st.subheader("Latest News Sentiment Analysis")
                 display_sentiment_trend(news)
                 if sentiment_score is not None:
-                    st.metric("Sentiment Score", f"{sentiment_score:.2f}")
+                    st.metric("Overall Sentiment Score", f"{sentiment_score:.2f}")
+                    sentiment_interpretation = "Positive" if sentiment_score > 0.05 else "Negative" if sentiment_score < -0.05 else "Neutral"
+                    st.write(f"The overall sentiment is {sentiment_interpretation}.")
+                else:
+                    st.info("Unable to calculate sentiment score.")
             else:
-                st.warning("No recent news available for sentiment analysis.")
+                st.info("No recent news available for sentiment analysis.")
 
         with tab5:
             if comparison_data is not None and not comparison_data.empty:
                 st.subheader("Competitor Comparison")
                 st.plotly_chart(create_comparison_chart(comparison_data), use_container_width=True)
+                
+                # Add a table with numeric comparisons
+                st.subheader("Comparative Performance")
+                latest_returns = comparison_data.iloc[-1].sort_values(ascending=False)
+                st.table(latest_returns.to_frame('1 Year Return').style.format("{:.2%}").background_gradient(cmap='RdYlGn'))
             else:
-                st.warning("Competitor comparison data not available.")
+                st.info("Competitor comparison data not available.")
 
             if innovation_data:
                 st.subheader("Innovation Metrics")
@@ -341,19 +336,22 @@ def main():
                 col2.metric("R&D Intensity", f"{innovation_data['R&D Intensity']:.2f}%")
                 st.plotly_chart(create_innovation_chart(innovation_data), use_container_width=True)
             else:
-                st.warning("Innovation metrics not available for this stock.")
+                st.info("Innovation metrics not available for this stock.")
 
         with tab6:
             if recommendations is not None:
                 display_recommendations(recommendations)
             else:
-                st.warning("No analyst recommendations available for this stock.")
+                st.info("No analyst recommendations available for this stock.")
 
     else:
         st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
 
     st.markdown("---")
     st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
+    st.markdown("**Disclaimer:** This tool does not provide investment advice. Always do your own research before making investment decisions.")
 
 if __name__ == "__main__":
     main()
+
+        
