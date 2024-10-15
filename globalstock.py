@@ -166,6 +166,98 @@ def display_sentiment_trend(news):
     fig.update_layout(title="Sentiment Trend", yaxis_title="Average Sentiment Score", xaxis_title="Date")
     st.plotly_chart(fig, use_container_width=True)
 
+def compute_returns(data):
+    data['Daily Return'] = data['Close'].pct_change()
+    data['Cumulative Return'] = (1 + data['Daily Return']).cumprod()
+    return data
+
+def compute_moving_averages(data, windows=[50, 200]):
+    for window in windows:
+        data[f'MA{window}'] = data['Close'].rolling(window=window).mean()
+    return data
+
+def display_stock_chart(data, ticker):
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.03, subplot_titles=(f'{ticker} Stock Price', 'Volume'),
+                        row_heights=[0.7, 0.3])
+
+    fig.add_trace(go.Candlestick(x=data.index,
+                open=data['Open'], high=data['High'],
+                low=data['Low'], close=data['Close'],
+                name='Price'), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='50 Day MA', line=dict(color='orange', width=1)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], name='200 Day MA', line=dict(color='red', width=1)), row=1, col=1)
+
+    fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume', marker_color='blue'), row=2, col=1)
+
+    fig.update_layout(
+        title=f'{ticker} Stock Analysis',
+        yaxis_title='Stock Price',
+        xaxis_rangeslider_visible=False,
+        height=800,
+        showlegend=True
+    )
+
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_returns_chart(data, ticker):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data.index, y=data['Cumulative Return'], mode='lines', name='Cumulative Return'))
+    fig.update_layout(
+        title=f'{ticker} Cumulative Returns',
+        yaxis_title='Cumulative Return',
+        xaxis_title='Date',
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_esg_data(esg_data):
+    st.subheader("ESG Data")
+    relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
+    numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
+
+    fig = go.Figure()
+    colors = {'totalEsg': 'purple', 'environmentScore': 'green', 'socialScore': 'blue', 'governanceScore': 'orange'}
+
+    for metric in numeric_data.index:
+        fig.add_trace(go.Bar(
+            x=[metric],
+            y=[numeric_data.loc[metric].values[0]],
+            name=metric,
+            marker_color=colors.get(metric, 'gray')
+        ))
+
+    fig.update_layout(
+        title="ESG Scores",
+        yaxis_title="Score",
+        height=400,
+        showlegend=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_company_info(info):
+    st.subheader("Company Information")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Sector", info.get('sector', 'N/A'))
+        st.metric("Full Time Employees", f"{info.get('fullTimeEmployees', 'N/A'):,}")
+    with col2:
+        st.metric("Industry", info.get('industry', 'N/A'))
+        st.metric("Country", info.get('country', 'N/A'))
+    
+    st.subheader("Financial Metrics")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Market Cap", f"${info.get('marketCap', 'N/A'):,.0f}" if isinstance(info.get('marketCap'), (int, float)) else 'N/A')
+    with col2:
+        st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A'):.2f}" if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
+    with col3:
+        st.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+
 def main():
     st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
     
