@@ -77,7 +77,7 @@ def display_stock_chart(data, ticker):
         yaxis_title='Stock Price',
         xaxis_rangeslider_visible=False,
         height=800,
-        showlegend=False
+        showlegend=True
     )
 
     fig.update_yaxes(title_text="Volume", row=2, col=1)
@@ -139,9 +139,6 @@ def display_esg_data(esg_data):
     }
     st.table(pd.DataFrame.from_dict(additional_info, orient='index', columns=['Value']))
 
-    st.subheader("Raw ESG Data")
-    st.dataframe(esg_data)
-
 def display_company_info(info):
     st.subheader("Company Information")
     col1, col2 = st.columns(2)
@@ -189,16 +186,44 @@ def get_recommendations(ticker):
 def display_recommendations(recommendations):
     if recommendations is not None and not recommendations.empty:
         st.subheader("Analyst Recommendations")
+        
+        # Prepare data for the last 4 periods
+        last_4_periods = recommendations.groupby('period').last().tail(4)
+        
+        # Create a stacked bar chart
+        fig = go.Figure()
+        categories = ['strongSell', 'sell', 'hold', 'buy', 'strongBuy']
+        colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
+        
+        for category, color in zip(categories, colors):
+            fig.add_trace(go.Bar(
+                x=last_4_periods.index,
+                y=last_4_periods[category],
+                name=category.capitalize(),
+                marker_color=color
+            ))
+        
+        fig.update_layout(
+            title="Analyst Recommendations (Last 4 Periods)",
+            xaxis_title="Period",
+            yaxis_title="Number of Analysts",
+            barmode='stack',
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Display the raw data
+        st.write("Raw Recommendation Data:")
         st.dataframe(recommendations.tail(10))  # Display last 10 recommendations
     else:
         st.warning("No analyst recommendations available.")
 
 def main():
-    st.set_page_config(layout="wide")
-    st.title("Advanced Financial Data Dashboard")
-    st.markdown("This dashboard provides comprehensive stock analysis including price trends, returns, ESG metrics, company information, news, and analyst recommendations.")
-
-    st.sidebar.header("Configure Your Analysis")
+    st.set_page_config(layout="wide", page_title="Stock Analysis Dashboard")
+    
+    # Sidebar
+    st.sidebar.title("Stock Analysis Dashboard")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
     period = st.sidebar.selectbox("Select Time Period", 
                                   options=["1M", "3M", "6M", "1Y", "2Y", "5Y"],
@@ -208,68 +233,72 @@ def main():
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
-    st.write(f"Fetching data for {ticker} from {start_date} to {end_date}")
+    # Main content
+    st.title(f"{ticker} Stock Analysis Dashboard")
+    st.write(f"Analyzing data from {start_date} to {end_date}")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Stock Analysis", "ESG Analysis", "Company Info", "News & Recommendations"])
+    # Fetch all data
+    with st.spinner('Fetching data...'):
+        stock_data = get_stock_data(ticker, start_date, end_date)
+        esg_data = get_esg_data(ticker)
+        company_info = get_company_info(ticker)
+        news = get_news(ticker)
+        recommendations = get_recommendations(ticker)
 
-    with tab1:
-        with st.spinner('Fetching stock data...'):
-            stock_data = get_stock_data(ticker, start_date, end_date)
+    if stock_data is not None and not stock_data.empty:
+        stock_data = compute_returns(stock_data)
+        stock_data = compute_moving_averages(stock_data)
 
-        if stock_data is not None and not stock_data.empty:
-            stock_data = compute_returns(stock_data)
-            stock_data = compute_moving_averages(stock_data)
+        # Key Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
+                    f"{stock_data['Daily Return'].iloc[-1]:.2%}")
+        col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
+        col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
+        if esg_data is not None:
+            col4.metric("ESG Score", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
 
-            st.header(f"{ticker} Stock Analysis")
+        # Tabs
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Recommendations"])
+
+        with tab1:
+            st.header("Stock Price Analysis")
             display_stock_chart(stock_data, ticker)
-
-            st.header(f"{ticker} Returns Analysis")
+            st.header("Returns Analysis")
             display_returns_chart(stock_data, ticker)
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
-                        f"{stock_data['Daily Return'].iloc[-1]:.2%}")
-            col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
-            col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
-        else:
-            st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
-
-    with tab2:
-        with st.spinner('Fetching ESG data...'):
-            esg_data = get_esg_data(ticker)
-
-        if esg_data is not None:
-            st.header(f"{ticker} ESG Analysis")
-            display_esg_data(esg_data)
-        else:
-            st.warning("ESG data not available for this stock.")
-
-    with tab3:
-        with st.spinner('Fetching company information...'):
-            company_info = get_company_info(ticker)
-
-        if company_info:
-            display_company_info(company_info)
-        else:
-            st.warning("Company information not available.")
-
-    with tab4:
-        col1, col2 = st.columns(2)
-        with col1:
-            with st.spinner('Fetching news...'):
-                news = get_news(ticker)
-            if news:
-                display_news(news)
+        with tab2:
+            if esg_data is not None:
+                display_esg_data(esg_data)
             else:
-                st.warning("No news available for this stock.")
-        
-        with col2:
-            with st.spinner('Fetching recommendations...'):
-                recommendations = get_recommendations(ticker)
-            if recommendations is not None:
-                display_recommendations(recommendations)
+                st.warning("ESG data not available for this stock.")
+
+        with tab3:
+            if company_info:
+                display_company_info(company_info)
             else:
-                st.warning("No recommendations available for this stock.")
+                st.warning("Company information not available.")
+
+        with tab4:
+            col1, col2 = st.columns(2)
+            with col1:
+                if news:
+                    display_news(news)
+                else:
+                    st.warning("No recent news available for this stock.")
+            
+            with col2:
+                if recommendations is not None:
+                    display_recommendations(recommendations)
+                else:
+                    st.warning("No analyst recommendations available for this stock.")
+
+    else:
+        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
+    # Footer
+    st.markdown("---")
+    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
