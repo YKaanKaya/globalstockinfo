@@ -139,6 +139,33 @@ def display_recommendations(recommendations):
     else:
         st.warning("No analyst recommendations available.")
 
+def get_sentiment_score(news):
+    try:
+        sentiment_scores = []
+        for article in news:
+            blob = TextBlob(article['title'])
+            sentiment_scores.append(blob.sentiment.polarity)
+        return np.mean(sentiment_scores)
+    except Exception as e:
+        st.error(f"Error calculating sentiment for news: {str(e)}")
+        return None
+
+def display_sentiment_trend(news):
+    sentiment_data = []
+    for article in news:
+        sentiment = TextBlob(article['title']).sentiment.polarity
+        date = datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d')
+        sentiment_data.append({'date': date, 'sentiment': sentiment})
+    
+    sentiment_df = pd.DataFrame(sentiment_data)
+    sentiment_df['date'] = pd.to_datetime(sentiment_df['date'])
+    sentiment_df = sentiment_df.groupby('date').mean()
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=sentiment_df.index, y=sentiment_df['sentiment'], mode='lines', name='Sentiment Score'))
+    fig.update_layout(title="Sentiment Trend", yaxis_title="Average Sentiment Score", xaxis_title="Date")
+    st.plotly_chart(fig, use_container_width=True)
+
 def main():
     st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
     
