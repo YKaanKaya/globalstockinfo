@@ -66,6 +66,8 @@ def compare_performance(ticker, competitors):
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)
         data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
+        if isinstance(data, pd.Series):
+            data = data.to_frame()
         if data.empty:
             st.warning("No competitor data available.")
             return None
@@ -141,12 +143,13 @@ def display_recommendations(recommendations):
         colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
         
         for category, color in zip(categories, colors):
-            fig.add_trace(go.Bar(
-                x=last_4_periods.index,
-                y=last_4_periods[category],
-                name=category.capitalize(),
-                marker_color=color
-            ))
+            if category in last_4_periods.columns:
+                fig.add_trace(go.Bar(
+                    x=last_4_periods.index,
+                    y=last_4_periods[category],
+                    name=category.capitalize(),
+                    marker_color=color
+                ))
         
         fig.update_layout(
             title="Analyst Recommendations (Last 4 Periods)",
