@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import requests
+from textblob import TextBlob
+import numpy as np
 
 def get_stock_data(ticker, start_date, end_date):
     try:
@@ -219,8 +221,71 @@ def display_recommendations(recommendations):
     else:
         st.warning("No analyst recommendations available.")
 
+def get_sentiment_score(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news[:10]  # Get latest 10 news items
+        sentiment_scores = []
+        for article in news:
+            blob = TextBlob(article['title'])
+            sentiment_scores.append(blob.sentiment.polarity)
+        return np.mean(sentiment_scores)
+    except Exception as e:
+        st.error(f"Error calculating sentiment for {ticker}: {str(e)}")
+        return None
+
+def get_competitors(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        sector = stock.info.get('sector')
+        industry = stock.info.get('industry')
+        if sector and industry:
+            competitors = yf.Ticker(sector).info.get('componentsSymbols', [])
+            return [comp for comp in competitors if comp != ticker][:5]  # Return top 5 competitors
+        return []
+    except Exception as e:
+        st.error(f"Error fetching competitors for {ticker}: {str(e)}")
+        return []
+
+def compare_performance(ticker, competitors):
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
+        returns = data.pct_change().cumsum()
+        return returns
+    except Exception as e:
+        st.error(f"Error comparing performance: {str(e)}")
+        return None
+
+def create_comparison_chart(comparison_data):
+    fig = go.Figure()
+    for column in comparison_data.columns:
+        fig.add_trace(go.Scatter(x=comparison_data.index, y=comparison_data[column], mode='lines', name=column))
+    fig.update_layout(title="1 Year Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Returns")
+    return fig
+
+def get_innovation_metrics(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        r_and_d = stock.info.get('researchAndDevelopment', 0)
+        revenue = stock.info.get('totalRevenue', 1)  # Avoid division by zero
+        r_and_d_intensity = (r_and_d / revenue) * 100 if revenue else 0
+        return {
+            'R&D Spending': r_and_d,
+            'R&D Intensity': r_and_d_intensity
+        }
+    except Exception as e:
+        st.error(f"Error fetching innovation metrics for {ticker}: {str(e)}")
+        return None
+
+def create_innovation_chart(innovation_data):
+    fig = go.Figure(data=[go.Bar(x=list(innovation_data.keys()), y=list(innovation_data.values()))])
+    fig.update_layout(title="Innovation Metrics", xaxis_title="Metric", yaxis_title="Value")
+    return fig
+
 def main():
-    st.set_page_config(layout="wide", page_title="Stock Analysis Dashboard")
+    st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
     
     # Sidebar
     st.sidebar.title("Stock Analysis Dashboard")
@@ -234,7 +299,7 @@ def main():
     start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
     # Main content
-    st.title(f"{ticker} Stock Analysis Dashboard")
+    st.title(f"{ticker} Enhanced Stock Analysis Dashboard")
     st.write(f"Analyzing data from {start_date} to {end_date}")
 
     # Fetch all data
@@ -244,61 +309,18 @@ def main():
         company_info = get_company_info(ticker)
         news = get_news(ticker)
         recommendations = get_recommendations(ticker)
+        sentiment_score = get_sentiment_score(ticker)
+        competitors = get_competitors(ticker)
+        comparison_data = compare_performance(ticker, competitors)
+        innovation_data = get_innovation_metrics(ticker)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
         stock_data = compute_moving_averages(stock_data)
 
         # Key Metrics
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}", 
                     f"{stock_data['Daily Return'].iloc[-1]:.2%}")
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
         col3.metric("200-Day MA", f"${stock_data['MA200'].iloc[-1]:.2f}")
-        if esg_data is not None:
-            col4.metric("ESG Score", f"{esg_data.loc['totalEsg'].values[0]:.2f}")
-
-        # Tabs
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Recommendations"])
-
-        with tab1:
-            st.header("Stock Price Analysis")
-            display_stock_chart(stock_data, ticker)
-            st.header("Returns Analysis")
-            display_returns_chart(stock_data, ticker)
-
-        with tab2:
-            if esg_data is not None:
-                display_esg_data(esg_data)
-            else:
-                st.warning("ESG data not available for this stock.")
-
-        with tab3:
-            if company_info:
-                display_company_info(company_info)
-            else:
-                st.warning("Company information not available.")
-
-        with tab4:
-            col1, col2 = st.columns(2)
-            with col1:
-                if news:
-                    display_news(news)
-                else:
-                    st.warning("No recent news available for this stock.")
-            
-            with col2:
-                if recommendations is not None:
-                    display_recommendations(recommendations)
-                else:
-                    st.warning("No analyst recommendations available for this stock.")
-
-    else:
-        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
-
-    # Footer
-    st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
-
-if __name__ == "__main__":
-    main()
