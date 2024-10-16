@@ -35,15 +35,12 @@ def format_large_number(value):
 
 @st.cache_data(ttl=3600)
 def get_sp500_companies():
-    """Fetch the list of S&P 500 companies from a reliable online source."""
+    """Fetch the list of S&P 500 companies from Wikipedia."""
     try:
-        # Source: Wikipedia's S&P 500 list via GitHub mirror to avoid direct Wikipedia dependency
-        url = 'https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv'
-        response = requests.get(url)
-        if response.status_code != 200:
-            st.error("Failed to fetch S&P 500 companies list.")
-            return pd.DataFrame()
-        sp500 = pd.read_csv(pd.compat.StringIO(response.text))
+        # Fetch the S&P 500 list from Wikipedia
+        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+        tables = pd.read_html(url)
+        sp500 = tables[0]
         sp500['Symbol'] = sp500['Symbol'].str.replace('.', '-', regex=False)  # Adjust ticker symbols if needed
         return sp500
     except Exception as e:
@@ -637,7 +634,7 @@ def display_cash_flow(cash_flow):
 def main():
     """Main function to run the Streamlit app."""
     st.sidebar.title("Stock Analysis Dashboard")
-    ticker = st.sidebar.text_input("Enter Stock Ticker", value="AAPL").upper()
+    ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
     period = st.sidebar.selectbox("Select Time Period",
                                   options=["1M", "3M", "6M", "1Y", "2Y", "5Y"],
                                   format_func=lambda x: f"{x[:-1]} {'Month' if x[-1]=='M' else 'Year'}{'s' if x[:-1]!='1' else ''}",
