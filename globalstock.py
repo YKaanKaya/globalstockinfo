@@ -206,16 +206,31 @@ def compute_analyst_consensus(recs):
     if recs is None or recs.empty:
         return None
     latest_recs = recs.tail(100)  # Consider the last 100 recommendations
-    grades = latest_recs['To Grade'].dropna()
+
+    # Determine the correct column for grades
+    grade_columns = ['To Grade', 'Action']
+    for col in grade_columns:
+        if col in latest_recs.columns:
+            grades = latest_recs[col].dropna()
+            break
+    else:
+        st.warning("No suitable column found for analyst recommendations.")
+        return None
+
     if grades.empty:
         return None
+
     # Standardize grades
     buy_terms = ['Buy', 'Strong Buy', 'Overweight', 'Add', 'Positive', 'Outperform']
     hold_terms = ['Hold', 'Neutral', 'Equal-Weight', 'Market Perform']
     sell_terms = ['Sell', 'Underperform', 'Underweight', 'Reduce', 'Negative']
-    buy_count = grades.isin(buy_terms).sum()
-    hold_count = grades.isin(hold_terms).sum()
-    sell_count = grades.isin(sell_terms).sum()
+
+    # Convert grades to strings for consistent comparison
+    grades = grades.astype(str)
+
+    buy_count = grades[grades.isin(buy_terms)].count()
+    hold_count = grades[grades.isin(hold_terms)].count()
+    sell_count = grades[grades.isin(sell_terms)].count()
     total = buy_count + hold_count + sell_count
     if total == 0:
         return None
