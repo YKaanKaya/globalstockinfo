@@ -189,6 +189,53 @@ def get_sentiment_score(ticker):
         st.error(f"Error calculating sentiment for {ticker}: {str(e)}")
         return "Neutral"
 
+@st.cache_data(ttl=3600)
+def get_analyst_recommendations(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        recs = stock.recommendations
+        if recs is None or recs.empty:
+            st.warning(f"No analyst recommendations found for {ticker}")
+            return None
+        return recs
+    except Exception as e:
+        st.error(f"Error fetching analyst recommendations for {ticker}: {str(e)}")
+        return None
+
+def compute_analyst_consensus(recs):
+    if recs is None or recs.empty:
+        return None
+    latest_recs = recs.tail(100)  # Consider the last 100 recommendations
+    grades = latest_recs['To Grade'].dropna()
+    if grades.empty:
+        return None
+    # Standardize grades
+    buy_terms = ['Buy', 'Strong Buy', 'Overweight', 'Add', 'Positive', 'Outperform']
+    hold_terms = ['Hold', 'Neutral', 'Equal-Weight', 'Market Perform']
+    sell_terms = ['Sell', 'Underperform', 'Underweight', 'Reduce', 'Negative']
+    buy_count = grades.isin(buy_terms).sum()
+    hold_count = grades.isin(hold_terms).sum()
+    sell_count = grades.isin(sell_terms).sum()
+    total = buy_count + hold_count + sell_count
+    if total == 0:
+        return None
+    consensus = {
+        'Buy': buy_count,
+        'Hold': hold_count,
+        'Sell': sell_count
+    }
+    return consensus
+
+def display_analyst_recommendations(consensus):
+    if consensus is None:
+        st.warning("No analyst consensus available.")
+        return
+    labels = list(consensus.keys())
+    values = list(consensus.values())
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3)])
+    fig.update_layout(title_text="Analyst Recommendations Consensus")
+    st.plotly_chart(fig, use_container_width=True)
+
 def compute_returns(data):
     data['Daily Return'] = data['Close'].pct_change()
     data['Cumulative Return'] = (1 + data['Daily Return']).cumprod()
@@ -326,7 +373,7 @@ def display_rsi_chart(data):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-def generate_recommendation(ticker, company_info, esg_data, sentiment_score, data):
+def generate_recommendation(ticker, company_info, esg_data, sentiment_score, data, analyst_consensus):
     score = 0
     factors = {}
 
@@ -395,8 +442,24 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
         factors['RSI'] = 'Negative (Overbought)'
         score -= 1
 
+    # Analyst Consensus
+    if analyst_consensus is not None:
+        buy = analyst_consensus.get('Buy', 0)
+        hold = analyst_consensus.get('Hold', 0)
+        sell = analyst_consensus.get('Sell', 0)
+        if buy > sell and buy > hold:
+            factors['Analyst Consensus'] = 'Positive'
+            score += 1
+        elif sell > buy and sell > hold:
+            factors['Analyst Consensus'] = 'Negative'
+            score -= 1
+        else:
+            factors['Analyst Consensus'] = 'Neutral'
+    else:
+        factors['Analyst Consensus'] = 'Neutral'
+
     # Generate Recommendation
-    if score >= 3:
+    if score >= 4:
         recommendation = 'Buy'
     elif score <= -1:
         recommendation = 'Sell'
@@ -656,6 +719,8 @@ def main():
         income_statement = get_income_statement(ticker)
         balance_sheet = get_balance_sheet(ticker)
         cash_flow = get_cash_flow(ticker)
+        analyst_recs = get_analyst_recommendations(ticker)
+        analyst_consensus = compute_analyst_consensus(analyst_recs)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
@@ -663,7 +728,7 @@ def main():
         stock_data = get_rsi(stock_data)
 
         # Generate Recommendation
-        recommendation, factors = generate_recommendation(ticker, company_info, esg_data, sentiment_score, stock_data)
+        recommendation, factors = generate_recommendation(ticker, company_info, esg_data, sentiment_score, stock_data, analyst_consensus)
 
         # Update top-level metrics to include Recommendation
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -738,6 +803,9 @@ def main():
                 st.plotly_chart(create_comparison_chart(comparison_data), use_container_width=True)
             else:
                 st.warning("Competitor comparison data not available.")
+
+            st.subheader("Analyst Recommendations")
+            display_analyst_recommendations(analyst_consensus)
 
         with tab6:
             st.header("Financial Statements")
