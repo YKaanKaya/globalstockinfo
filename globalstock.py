@@ -183,92 +183,6 @@ def display_news(news):
         st.write("---")
 
 @st.cache_data(ttl=3600)
-def get_recommendations(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        recommendations = stock.recommendations
-        if recommendations is not None and not recommendations.empty:
-            # Reset index to ensure 'Date' is a column
-            recommendations.reset_index(inplace=True)
-            # Determine which columns are present
-            grade_columns = ['To Grade', 'Action', 'Firm']
-            # Use 'To Grade' or 'Action' column for recommendations
-            if 'To Grade' in recommendations.columns:
-                latest_recommendations = recommendations[['To Grade']].tail(100)
-                grade_column = 'To Grade'
-            elif 'Action' in recommendations.columns:
-                latest_recommendations = recommendations[['Action']].tail(100)
-                grade_column = 'Action'
-            else:
-                st.warning("No suitable grade column found in recommendations.")
-                return None
-
-            # Map grades to categories
-            mapping = {
-                'Strong Buy': 'Strong Buy',
-                'Buy': 'Buy',
-                'Hold': 'Hold',
-                'Sell': 'Sell',
-                'Strong Sell': 'Strong Sell',
-                'Underperform': 'Sell',
-                'Outperform': 'Buy',
-                'Neutral': 'Hold',
-                'Market Perform': 'Hold',
-                'Perform': 'Hold',
-                'Overweight': 'Buy',
-                'Underweight': 'Sell',
-                'Equal-Weight': 'Hold',
-                'Equal-weight': 'Hold',
-                'Sector Perform': 'Hold',
-                'Sector Outperform': 'Buy',
-                'Positive': 'Buy',
-                'Negative': 'Sell',
-                'Mixed': 'Hold',
-                # Add other mappings as necessary
-            }
-            latest_recommendations['Recommendation'] = latest_recommendations[grade_column].map(mapping)
-            recommendation_counts = latest_recommendations['Recommendation'].value_counts()
-            return recommendation_counts
-        else:
-            st.warning("No recommendations data available.")
-            return None
-    except Exception as e:
-        st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
-        return None
-
-def display_recommendations(recommendation_counts):
-    if recommendation_counts is not None and not recommendation_counts.empty:
-        st.subheader("Analyst Recommendations")
-        
-        categories = ['Strong Sell', 'Sell', 'Hold', 'Buy', 'Strong Buy']
-        colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
-        
-        fig = go.Figure()
-        for category, color in zip(categories, colors):
-            count = recommendation_counts.get(category, 0)
-            fig.add_trace(go.Bar(
-                x=[category],
-                y=[count],
-                name=category,
-                marker_color=color
-            ))
-        
-        fig.update_layout(
-            title="Analyst Recommendations (Last 100 Recommendations)",
-            xaxis_title="Recommendation",
-            yaxis_title="Number of Analysts",
-            height=400,
-            showlegend=False
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        st.write("Raw Recommendation Data:")
-        st.dataframe(recommendation_counts)
-    else:
-        st.warning("No analyst recommendations available.")
-
-@st.cache_data(ttl=3600)
 def get_sentiment_score(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -399,6 +313,74 @@ def display_company_info(info):
     address = ', '.join(part for part in address_parts if part)
     st.write(f"Address: {address}")
 
+def generate_recommendation(ticker, company_info, esg_data, sentiment_score):
+    score = 0
+    factors = {}
+
+    # P/E Ratio
+    forward_pe = company_info.get('forwardPE', None)
+    if isinstance(forward_pe, (int, float)):
+        if forward_pe < 15:
+            factors['P/E Ratio'] = 'Positive'
+            score += 1
+        elif 15 <= forward_pe <= 25:
+            factors['P/E Ratio'] = 'Neutral'
+        else:
+            factors['P/E Ratio'] = 'Negative'
+            score -= 1
+    else:
+        factors['P/E Ratio'] = 'Neutral'
+
+    # Dividend Yield
+    dividend_yield = company_info.get('dividendYield', None)
+    if isinstance(dividend_yield, (int, float)):
+        if dividend_yield > 0.03:
+            factors['Dividend Yield'] = 'Positive'
+            score += 1
+        elif 0.01 <= dividend_yield <= 0.03:
+            factors['Dividend Yield'] = 'Neutral'
+        else:
+            factors['Dividend Yield'] = 'Negative'
+            score -= 1
+    else:
+        factors['Dividend Yield'] = 'Neutral'
+
+    # ESG Score
+    if esg_data is not None:
+        esg_score = esg_data.loc['totalEsg'].values[0]
+        if esg_score > 50:
+            factors['ESG Score'] = 'Positive'
+            score += 1
+        elif 30 <= esg_score <= 50:
+            factors['ESG Score'] = 'Neutral'
+        else:
+            factors['ESG Score'] = 'Negative'
+            score -= 1
+    else:
+        factors['ESG Score'] = 'Neutral'
+
+    # Sentiment Score
+    if sentiment_score == 'Positive':
+        factors['Sentiment'] = 'Positive'
+        score += 1
+    elif sentiment_score == 'Neutral':
+        factors['Sentiment'] = 'Neutral'
+    elif sentiment_score == 'Negative':
+        factors['Sentiment'] = 'Negative'
+        score -= 1
+    else:
+        factors['Sentiment'] = 'Neutral'
+
+    # Generate Recommendation
+    if score >= 2:
+        recommendation = 'Buy'
+    elif score <= -1:
+        recommendation = 'Sell'
+    else:
+        recommendation = 'Hold'
+
+    return recommendation, factors
+
 def main():
     st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
 
@@ -420,7 +402,6 @@ def main():
         esg_data = get_esg_data(ticker)
         company_info = get_company_info(ticker)
         news = get_news(ticker)
-        recommendations = get_recommendations(ticker)
         sentiment_score = get_sentiment_score(ticker)
         competitors = get_competitors(ticker)
         comparison_data = compare_performance(ticker, competitors)
@@ -429,6 +410,9 @@ def main():
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
         stock_data = compute_moving_averages(stock_data)
+
+        # Generate Recommendation
+        recommendation, factors = generate_recommendation(ticker, company_info, esg_data, sentiment_score)
 
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}",
@@ -445,7 +429,15 @@ def main():
         else:
             col5.metric("Sentiment", "N/A")
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Recommendations", "🔍 Unique Insights"])
+        st.header("Automated Stock Recommendation")
+        st.metric("Recommendation", recommendation)
+        st.write("**Disclaimer:** This recommendation is generated automatically based on predefined criteria and is not financial advice. This app is intended for improving technical skills and sharing them with potential interested parties.")
+
+        st.subheader("Factors Considered")
+        for factor, assessment in factors.items():
+            st.write(f"- **{factor}**: {assessment}")
+
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Sentiment", "🔍 Unique Insights"])
 
         with tab1:
             st.header("Stock Price Analysis")
@@ -474,10 +466,8 @@ def main():
                     st.warning("No recent news available for this stock.")
 
             with col2:
-                if recommendations is not None and not recommendations.empty:
-                    display_recommendations(recommendations)
-                else:
-                    st.warning("No analyst recommendations available for this stock.")
+                st.subheader("Sentiment Analysis")
+                st.write(f"The overall sentiment based on recent news headlines is **{sentiment_score}**.")
 
         with tab5:
             st.header("Unique Insights")
