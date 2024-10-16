@@ -8,9 +8,6 @@ from datetime import datetime, timedelta
 from textblob import TextBlob
 import numpy as np
 
-# Alpha Vantage API key from Streamlit secrets
-api_key = st.secrets["A_KEY"]
-
 def format_large_number(value):
     if not isinstance(value, (int, float)):
         return 'N/A'
@@ -27,7 +24,6 @@ def format_large_number(value):
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker, start_date, end_date):
     try:
-        # Fetch historical data from yfinance
         stock = yf.Ticker(ticker)
         df = stock.history(start=start_date, end=end_date)
         if df.empty:
@@ -41,25 +37,25 @@ def get_stock_data(ticker, start_date, end_date):
 @st.cache_data(ttl=3600)
 def get_company_info(ticker):
     try:
-        # Fetch company info from yfinance
         stock = yf.Ticker(ticker)
-        info = {
-            'sector': stock.info.get('sector', 'N/A'),
-            'industry': stock.info.get('industry', 'N/A'),
-            'fullTimeEmployees': stock.info.get('fullTimeEmployees', 'N/A'),
-            'country': stock.info.get('country', 'N/A'),
-            'marketCap': stock.info.get('marketCap', 'N/A'),
-            'forwardPE': stock.info.get('forwardPE', 'N/A'),
-            'dividendYield': stock.info.get('dividendYield', 'N/A'),
-            'longBusinessSummary': stock.info.get('longBusinessSummary', 'N/A'),
-            'website': stock.info.get('website', 'N/A'),
-            'address1': stock.info.get('address1', ''),
-            'city': stock.info.get('city', ''),
-            'state': stock.info.get('state', ''),
-            'zip': stock.info.get('zip', ''),
-            'phone': stock.info.get('phone', 'N/A'),
+        info = stock.info
+        relevant_info = {
+            'sector': info.get('sector', 'N/A'),
+            'industry': info.get('industry', 'N/A'),
+            'fullTimeEmployees': info.get('fullTimeEmployees', 'N/A'),
+            'country': info.get('country', 'N/A'),
+            'marketCap': info.get('marketCap', 'N/A'),
+            'forwardPE': info.get('forwardPE', 'N/A'),
+            'dividendYield': info.get('dividendYield', 'N/A'),
+            'longBusinessSummary': info.get('longBusinessSummary', 'N/A'),
+            'website': info.get('website', 'N/A'),
+            'address1': info.get('address1', ''),
+            'city': info.get('city', ''),
+            'state': info.get('state', ''),
+            'zip': info.get('zip', ''),
+            'phone': info.get('phone', 'N/A'),
         }
-        return info
+        return relevant_info
     except Exception as e:
         st.error(f"Error fetching company info for {ticker}: {str(e)}")
         return None
@@ -80,26 +76,21 @@ def get_esg_data(ticker):
 @st.cache_data(ttl=3600)
 def get_competitors(ticker):
     try:
-        # Get the industry of the selected ticker
         company_info = get_company_info(ticker)
         if not company_info or company_info['industry'] == 'N/A':
             st.warning(f"Industry information not available for {ticker}")
             return []
         industry = company_info['industry']
 
-        # Get the list of S&P 500 companies
         sp500_df = get_sp500_companies()
         if sp500_df is None or sp500_df.empty:
             st.warning("Could not retrieve S&P 500 companies.")
             return []
 
-        # Filter companies in the same industry
         competitors_df = sp500_df[sp500_df['Industry'] == industry]
-        # Exclude the selected ticker
         competitors_df = competitors_df[competitors_df['Ticker'] != ticker]
 
-        # Get the list of competitor tickers
-        competitors = competitors_df['Ticker'].tolist()[:5]  # Return top 5 competitors
+        competitors = competitors_df['Ticker'].tolist()[:5]
         return competitors
     except Exception as e:
         st.error(f"Error fetching competitors for {ticker}: {str(e)}")
@@ -107,7 +98,6 @@ def get_competitors(ticker):
 
 @st.cache_data(ttl=3600)
 def get_sp500_companies():
-    # Fetch the list of S&P 500 companies from Wikipedia
     url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     try:
         tables = pd.read_html(url)
@@ -162,7 +152,7 @@ def get_news(ticker):
 
 def display_news(news):
     st.subheader("Latest News")
-    for article in news[:5]:  # Display top 5 news articles
+    for article in news[:5]:
         st.write(f"**{article['title']}**")
         st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
         st.write(article['link'])
@@ -190,59 +180,55 @@ def get_sentiment_score(ticker):
         return "Neutral"
 
 @st.cache_data(ttl=3600)
-def get_analyst_estimates(ticker):
+def get_analyst_recommendations(ticker):
     try:
-        # Fetch analyst estimates data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "ANALYST_ESTIMATES",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "analystEstimates" not in data:
-            st.warning(f"No analyst estimates data available for {ticker}")
+        stock = yf.Ticker(ticker)
+        recs = stock.recommendations
+        if recs is None or recs.empty:
+            st.warning(f"No analyst recommendations found for {ticker}")
             return None
-
-        estimates = data["analystEstimates"]
-        # Convert the estimates to a DataFrame
-        estimates_df = pd.DataFrame(estimates)
-        return estimates_df
+        return recs
     except Exception as e:
-        st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
+        st.error(f"Error fetching analyst recommendations for {ticker}: {str(e)}")
         return None
 
-def compute_analyst_consensus_alpha_vantage(estimates_df):
-    if estimates_df is None or estimates_df.empty:
+def compute_analyst_consensus(recs):
+    if recs is None or recs.empty:
         return None
+    latest_recs = recs.tail(100)
 
-    # Look for consensus recommendations
-    if 'recommendationKey' in estimates_df.columns:
-        recs = estimates_df['recommendationKey'].dropna()
-        # Count the number of 'buy', 'hold', 'sell' recommendations
-        buy_terms = ['buy', 'strong_buy']
-        hold_terms = ['hold']
-        sell_terms = ['sell', 'strong_sell']
-
-        buy_count = recs[recs.isin(buy_terms)].count()
-        hold_count = recs[recs.isin(hold_terms)].count()
-        sell_count = recs[recs.isin(sell_terms)].count()
-
-        total = buy_count + hold_count + sell_count
-        if total == 0:
-            return None
-
-        consensus = {
-            'Buy': buy_count,
-            'Hold': hold_count,
-            'Sell': sell_count
-        }
-        return consensus
+    # Determine the correct column for grades
+    grade_columns = ['To Grade', 'Action', 'rating', 'Recommendation']
+    for col in grade_columns:
+        if col in latest_recs.columns:
+            grades = latest_recs[col].dropna()
+            break
     else:
-        st.warning("No recommendation data found in analyst estimates.")
+        st.warning("No suitable column found for analyst recommendations.")
         return None
+
+    if grades.empty:
+        return None
+
+    # Standardize grades
+    buy_terms = ['Buy', 'Strong Buy', 'Overweight', 'Add', 'Positive', 'Outperform']
+    hold_terms = ['Hold', 'Neutral', 'Equal-Weight', 'Market Perform']
+    sell_terms = ['Sell', 'Underperform', 'Underweight', 'Reduce', 'Negative']
+
+    grades = grades.astype(str)
+
+    buy_count = grades[grades.str.contains('|'.join(buy_terms), case=False)].count()
+    hold_count = grades[grades.str.contains('|'.join(hold_terms), case=False)].count()
+    sell_count = grades[grades.str.contains('|'.join(sell_terms), case=False)].count()
+    total = buy_count + hold_count + sell_count
+    if total == 0:
+        return None
+    consensus = {
+        'Buy': buy_count,
+        'Hold': hold_count,
+        'Sell': sell_count
+    }
+    return consensus
 
 def display_analyst_recommendations(consensus):
     if consensus is None:
@@ -307,7 +293,6 @@ def display_esg_data(esg_data):
     relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
     numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
 
-    # Mapping for better metric names
     metric_names = {
         'totalEsg': 'Total ESG Score',
         'environmentScore': 'Environmental Score',
@@ -536,22 +521,14 @@ def display_recommendation_visualization(recommendation, factors):
 @st.cache_data(ttl=3600)
 def get_income_statement(ticker):
     try:
-        # Fetch income statement data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "INCOME_STATEMENT",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "annualReports" not in data:
+        stock = yf.Ticker(ticker)
+        income_statement = stock.financials
+        if income_statement is None or income_statement.empty:
             st.warning(f"No income statement data available for {ticker}")
             return None
-
-        income_statement = pd.DataFrame(data["annualReports"])
-        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+        income_statement = income_statement.T
+        income_statement.reset_index(inplace=True)
+        income_statement.rename(columns={'index': 'Fiscal Date Ending'}, inplace=True)
         return income_statement
     except Exception as e:
         st.error(f"Error fetching income statement data for {ticker}: {str(e)}")
@@ -559,34 +536,27 @@ def get_income_statement(ticker):
 
 def display_income_statement(income_statement):
     st.subheader("Income Statement")
-    # Check if income_statement is valid
     if income_statement is None or income_statement.empty:
         st.warning("Income statement data not available.")
         return
 
-    # Display the last 5 annual reports
-    reports = income_statement.head(5)
-    reports = reports.set_index('fiscalDateEnding')
-
     # Select relevant columns
-    columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+    columns_to_display = ['Total Revenue', 'Gross Profit', 'Ebit', 'Net Income']
 
     # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    missing_columns = [col for col in columns_to_display if col not in income_statement.columns]
     if missing_columns:
         st.warning(f"The following columns are missing in the income statement data: {', '.join(missing_columns)}")
         return
 
-    reports = reports[columns_to_display]
+    reports = income_statement[['Fiscal Date Ending'] + columns_to_display]
+    reports.set_index('Fiscal Date Ending', inplace=True)
 
     # Convert columns to numeric, coercing errors
     reports = reports.apply(pd.to_numeric, errors='coerce')
 
     # Transpose the DataFrame
     reports = reports.transpose()
-
-    # Rename the index for better readability
-    reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
 
     # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
@@ -596,22 +566,14 @@ def display_income_statement(income_statement):
 @st.cache_data(ttl=3600)
 def get_balance_sheet(ticker):
     try:
-        # Fetch balance sheet data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "BALANCE_SHEET",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "annualReports" not in data:
+        stock = yf.Ticker(ticker)
+        balance_sheet = stock.balance_sheet
+        if balance_sheet is None or balance_sheet.empty:
             st.warning(f"No balance sheet data available for {ticker}")
             return None
-
-        balance_sheet = pd.DataFrame(data["annualReports"])
-        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
+        balance_sheet = balance_sheet.T
+        balance_sheet.reset_index(inplace=True)
+        balance_sheet.rename(columns={'index': 'Fiscal Date Ending'}, inplace=True)
         return balance_sheet
     except Exception as e:
         st.error(f"Error fetching balance sheet data for {ticker}: {str(e)}")
@@ -619,35 +581,24 @@ def get_balance_sheet(ticker):
 
 def display_balance_sheet(balance_sheet):
     st.subheader("Balance Sheet")
-    # Check if balance_sheet is valid
     if balance_sheet is None or balance_sheet.empty:
         st.warning("Balance sheet data not available.")
         return
 
-    reports = balance_sheet.head(5)
-    reports = reports.set_index('fiscalDateEnding')
+    columns_to_display = ['Total Assets', 'Total Liab', 'Total Stockholder Equity']
 
-    # Select relevant columns
-    columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
-
-    # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    missing_columns = [col for col in columns_to_display if col not in balance_sheet.columns]
     if missing_columns:
         st.warning(f"The following columns are missing in the balance sheet data: {', '.join(missing_columns)}")
         return
 
-    reports = reports[columns_to_display]
+    reports = balance_sheet[['Fiscal Date Ending'] + columns_to_display]
+    reports.set_index('Fiscal Date Ending', inplace=True)
 
-    # Convert columns to numeric, coercing errors
     reports = reports.apply(pd.to_numeric, errors='coerce')
 
-    # Transpose the DataFrame
     reports = reports.transpose()
 
-    # Rename the index for better readability
-    reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
-
-    # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
 
     st.dataframe(formatted_reports)
@@ -655,22 +606,14 @@ def display_balance_sheet(balance_sheet):
 @st.cache_data(ttl=3600)
 def get_cash_flow(ticker):
     try:
-        # Fetch cash flow data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "CASH_FLOW",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "annualReports" not in data:
+        stock = yf.Ticker(ticker)
+        cash_flow = stock.cashflow
+        if cash_flow is None or cash_flow.empty:
             st.warning(f"No cash flow data available for {ticker}")
             return None
-
-        cash_flow = pd.DataFrame(data["annualReports"])
-        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
+        cash_flow = cash_flow.T
+        cash_flow.reset_index(inplace=True)
+        cash_flow.rename(columns={'index': 'Fiscal Date Ending'}, inplace=True)
         return cash_flow
     except Exception as e:
         st.error(f"Error fetching cash flow data for {ticker}: {str(e)}")
@@ -678,35 +621,24 @@ def get_cash_flow(ticker):
 
 def display_cash_flow(cash_flow):
     st.subheader("Cash Flow Statement")
-    # Check if cash_flow is valid
     if cash_flow is None or cash_flow.empty:
         st.warning("Cash flow data not available.")
         return
 
-    reports = cash_flow.head(5)
-    reports = reports.set_index('fiscalDateEnding')
+    columns_to_display = ['Total Cash From Operating Activities', 'Total Cashflows From Investing Activities', 'Total Cash From Financing Activities', 'Net Income']
 
-    # Select relevant columns
-    columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
-
-    # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    missing_columns = [col for col in columns_to_display if col not in cash_flow.columns]
     if missing_columns:
         st.warning(f"The following columns are missing in the cash flow data: {', '.join(missing_columns)}")
         return
 
-    reports = reports[columns_to_display]
+    reports = cash_flow[['Fiscal Date Ending'] + columns_to_display]
+    reports.set_index('Fiscal Date Ending', inplace=True)
 
-    # Convert columns to numeric, coercing errors
     reports = reports.apply(pd.to_numeric, errors='coerce')
 
-    # Transpose the DataFrame
     reports = reports.transpose()
 
-    # Rename the index for better readability
-    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
-
-    # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
 
     st.dataframe(formatted_reports)
@@ -737,8 +669,8 @@ def main():
         income_statement = get_income_statement(ticker)
         balance_sheet = get_balance_sheet(ticker)
         cash_flow = get_cash_flow(ticker)
-        analyst_estimates = get_analyst_estimates(ticker)
-        analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
+        analyst_recs = get_analyst_recommendations(ticker)
+        analyst_consensus = compute_analyst_consensus(analyst_recs)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
@@ -848,7 +780,7 @@ def main():
         st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
 
     st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
+    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
