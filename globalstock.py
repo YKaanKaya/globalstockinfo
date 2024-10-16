@@ -1,22 +1,17 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import requests
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 from textblob import TextBlob
 import numpy as np
-import requests
 
-# Set Streamlit page configuration
-st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
-
-# ----------------------------
-# Utility Functions
-# ----------------------------
+# Alpha Vantage API key from Streamlit secrets
+api_key = st.secrets["A_KEY"]
 
 def format_large_number(value):
-    """Format large numbers into readable strings with suffixes."""
     if not isinstance(value, (int, float)):
         return 'N/A'
     abs_value = abs(value)
@@ -29,28 +24,10 @@ def format_large_number(value):
     else:
         return f"${value:,.0f}"
 
-# ----------------------------
-# Caching Functions
-# ----------------------------
-
-@st.cache_data(ttl=3600)
-def get_sp500_companies():
-    """Fetch the list of S&P 500 companies from Wikipedia."""
-    try:
-        # Fetch the S&P 500 list from Wikipedia
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        tables = pd.read_html(url)
-        sp500 = tables[0]
-        sp500['Symbol'] = sp500['Symbol'].str.replace('.', '-', regex=False)  # Adjust ticker symbols if needed
-        return sp500
-    except Exception as e:
-        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
-        return pd.DataFrame()
-
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker, start_date, end_date):
-    """Fetch historical stock data using yfinance."""
     try:
+        # Fetch historical data from yfinance
         stock = yf.Ticker(ticker)
         df = stock.history(start=start_date, end=end_date)
         if df.empty:
@@ -63,35 +40,32 @@ def get_stock_data(ticker, start_date, end_date):
 
 @st.cache_data(ttl=3600)
 def get_company_info(ticker):
-    """Fetch company information using yfinance."""
     try:
+        # Fetch company info from yfinance
         stock = yf.Ticker(ticker)
-        info = stock.info
-        # Extract relevant information
-        company_info = {
-            'Sector': info.get('sector', 'N/A'),
-            'Industry': info.get('industry', 'N/A'),
-            'Full Time Employees': info.get('fullTimeEmployees', 'N/A'),
-            'Country': info.get('country', 'N/A'),
-            'Market Cap': info.get('marketCap', 'N/A'),
-            'Forward P/E': info.get('forwardPE', 'N/A'),
-            'Dividend Yield': info.get('dividendYield', 'N/A'),
-            'Long Business Summary': info.get('longBusinessSummary', 'N/A'),
-            'Website': info.get('website', 'N/A'),
-            'Phone': info.get('phone', 'N/A'),
-            'Address': info.get('address1', ''),
-            'City': info.get('city', ''),
-            'State': info.get('state', ''),
-            'Zip': info.get('zip', ''),
+        info = {
+            'sector': stock.info.get('sector', 'N/A'),
+            'industry': stock.info.get('industry', 'N/A'),
+            'fullTimeEmployees': stock.info.get('fullTimeEmployees', 'N/A'),
+            'country': stock.info.get('country', 'N/A'),
+            'marketCap': stock.info.get('marketCap', 'N/A'),
+            'forwardPE': stock.info.get('forwardPE', 'N/A'),
+            'dividendYield': stock.info.get('dividendYield', 'N/A'),
+            'longBusinessSummary': stock.info.get('longBusinessSummary', 'N/A'),
+            'website': stock.info.get('website', 'N/A'),
+            'address1': stock.info.get('address1', ''),
+            'city': stock.info.get('city', ''),
+            'state': stock.info.get('state', ''),
+            'zip': stock.info.get('zip', ''),
+            'phone': stock.info.get('phone', 'N/A'),
         }
-        return company_info
+        return info
     except Exception as e:
         st.error(f"Error fetching company info for {ticker}: {str(e)}")
         return None
 
 @st.cache_data(ttl=3600)
 def get_esg_data(ticker):
-    """Fetch ESG data using yfinance."""
     try:
         stock = yf.Ticker(ticker)
         esg_data = stock.sustainability
@@ -104,35 +78,56 @@ def get_esg_data(ticker):
         return None
 
 @st.cache_data(ttl=3600)
-def get_competitors(ticker, industry, sp500_df):
-    """Identify competitors within the same industry from S&P 500 list."""
+def get_competitors(ticker):
     try:
-        if industry == 'N/A':
-            st.warning(f"Industry information not available for {ticker}. Cannot identify competitors.")
+        # Get the industry of the selected ticker
+        company_info = get_company_info(ticker)
+        if not company_info or company_info['industry'] == 'N/A':
+            st.warning(f"Industry information not available for {ticker}")
             return []
-        # Filter S&P 500 companies by the same industry
+        industry = company_info['industry']
+
+        # Get the list of S&P 500 companies
+        sp500_df = get_sp500_companies()
+        if sp500_df is None or sp500_df.empty:
+            st.warning("Could not retrieve S&P 500 companies.")
+            return []
+
+        # Filter companies in the same industry
         competitors_df = sp500_df[sp500_df['Industry'] == industry]
         # Exclude the selected ticker
-        competitors_df = competitors_df[competitors_df['Symbol'] != ticker]
+        competitors_df = competitors_df[competitors_df['Ticker'] != ticker]
+
         # Get the list of competitor tickers
-        competitors = competitors_df['Symbol'].tolist()[:5]  # Return top 5 competitors
-        if not competitors:
-            st.warning(f"No competitors found for {ticker} in the {industry} industry.")
+        competitors = competitors_df['Ticker'].tolist()[:5]  # Return top 5 competitors
         return competitors
     except Exception as e:
         st.error(f"Error fetching competitors for {ticker}: {str(e)}")
         return []
 
 @st.cache_data(ttl=3600)
+def get_sp500_companies():
+    # Fetch the list of S&P 500 companies from Wikipedia
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        tables = pd.read_html(url)
+        df = tables[0]
+        df = df[['Symbol', 'Security', 'GICS Sector', 'GICS Sub-Industry']]
+        df.columns = ['Ticker', 'Company', 'Sector', 'Industry']
+        return df
+    except Exception as e:
+        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
 def compare_performance(ticker, competitors):
-    """Compare cumulative returns of the ticker with its competitors over 1 year."""
     try:
         if not competitors:
+            st.warning("No competitors found for comparison.")
             return None
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)
-        tickers = [ticker] + competitors
-        data = yf.download(tickers, start=start_date, end=end_date)['Adj Close']
+        data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
         if isinstance(data, pd.Series):
             data = data.to_frame()
         if data.empty:
@@ -145,23 +140,18 @@ def compare_performance(ticker, competitors):
         return None
 
 def create_comparison_chart(comparison_data):
-    """Create a Plotly chart comparing cumulative returns."""
     if comparison_data is None or comparison_data.empty:
         st.warning("No data available for comparison.")
         return None
 
     fig = go.Figure()
     for column in comparison_data.columns:
-        fig.add_trace(go.Scatter(x=comparison_data.index, y=comparison_data[column],
-                                 mode='lines', name=column))
-    fig.update_layout(title="1 Year Cumulative Returns Comparison",
-                      xaxis_title="Date", yaxis_title="Cumulative Returns",
-                      height=600)
+        fig.add_trace(go.Scatter(x=comparison_data.index, y=comparison_data[column], mode='lines', name=column))
+    fig.update_layout(title="1 Year Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Returns")
     return fig
 
 @st.cache_data(ttl=3600)
 def get_news(ticker):
-    """Fetch latest news articles for the ticker."""
     try:
         stock = yf.Ticker(ticker)
         news = stock.news
@@ -171,24 +161,17 @@ def get_news(ticker):
         return None
 
 def display_news(news):
-    """Display the latest news articles."""
     st.subheader("Latest News")
-    if not news:
-        st.warning("No news available.")
-        return
     for article in news[:5]:  # Display top 5 news articles
-        st.markdown(f"### [{article['title']}]({article['link']})")
-        try:
-            pub_time = datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
-        except:
-            pub_time = "N/A"
-        st.markdown(f"*Published on: {pub_time}*")
-        st.markdown("---")
+        st.write(f"**{article['title']}**")
+        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
+        st.write(article['link'])
+        st.write("---")
 
 @st.cache_data(ttl=3600)
-def get_sentiment_score(news):
-    """Calculate sentiment score based on news headlines."""
+def get_sentiment_score(ticker):
     try:
+        news = get_news(ticker)
         if not news:
             return "Neutral"
         sentiment_scores = []
@@ -203,54 +186,53 @@ def get_sentiment_score(news):
         else:
             return "Neutral"
     except Exception as e:
-        st.error(f"Error calculating sentiment: {str(e)}")
+        st.error(f"Error calculating sentiment for {ticker}: {str(e)}")
         return "Neutral"
 
 @st.cache_data(ttl=3600)
-def get_financial_statements(ticker):
-    """Fetch financial statements using yfinance."""
+def get_analyst_estimates(ticker):
     try:
-        stock = yf.Ticker(ticker)
-        financials = stock.financials
-        quarterly_financials = stock.quarterly_financials
-        balance_sheet = stock.balance_sheet
-        quarterly_balance_sheet = stock.quarterly_balance_sheet
-        cashflow = stock.cashflow
-        quarterly_cashflow = stock.quarterly_cashflow
-        return {
-            'annual_financials': financials,
-            'quarterly_financials': quarterly_financials,
-            'annual_balance_sheet': balance_sheet,
-            'quarterly_balance_sheet': quarterly_balance_sheet,
-            'annual_cashflow': cashflow,
-            'quarterly_cashflow': quarterly_cashflow
+        # Fetch analyst estimates data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "ANALYST_ESTIMATES",
+            "symbol": ticker,
+            "apikey": api_key
         }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "analystEstimates" not in data:
+            st.warning(f"No analyst estimates data available for {ticker}")
+            return None
+
+        estimates = data["analystEstimates"]
+        # Convert the estimates to a DataFrame
+        estimates_df = pd.DataFrame(estimates)
+        return estimates_df
     except Exception as e:
-        st.error(f"Error fetching financial statements for {ticker}: {str(e)}")
+        st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
         return None
 
-@st.cache_data(ttl=3600)
-def get_recommendations(ticker):
-    """Fetch analyst recommendations using yfinance."""
-    try:
-        stock = yf.Ticker(ticker)
-        recommendations = stock.recommendations
-        if recommendations is None or recommendations.empty:
-            st.warning(f"No analyst recommendations available for {ticker} from Yahoo Finance")
-            return None
-        # Ensure 'To Grade' column exists
-        if 'To Grade' not in recommendations.columns:
-            st.warning(f"'To Grade' column not found in recommendations for {ticker}")
-            return None
-        # Process recommendations to count 'Buy', 'Hold', 'Sell'
-        recommendations = recommendations['To Grade'].dropna().str.lower()
-        buy_terms = ['buy', 'strong buy']
-        hold_terms = ['hold']
-        sell_terms = ['sell', 'strong sell']
+def compute_analyst_consensus_alpha_vantage(estimates_df):
+    if estimates_df is None or estimates_df.empty:
+        return None
 
-        buy_count = recommendations[recommendations.isin(buy_terms)].count()
-        hold_count = recommendations[recommendations.isin(hold_terms)].count()
-        sell_count = recommendations[recommendations.isin(sell_terms)].count()
+    # Look for consensus recommendations
+    if 'recommendationKey' in estimates_df.columns:
+        recs = estimates_df['recommendationKey'].dropna()
+        # Count the number of 'buy', 'hold', 'sell' recommendations
+        buy_terms = ['buy', 'strong_buy']
+        hold_terms = ['hold']
+        sell_terms = ['sell', 'strong_sell']
+
+        buy_count = recs[recs.isin(buy_terms)].count()
+        hold_count = recs[recs.isin(hold_terms)].count()
+        sell_count = recs[recs.isin(sell_terms)].count()
+
+        total = buy_count + hold_count + sell_count
+        if total == 0:
+            return None
 
         consensus = {
             'Buy': buy_count,
@@ -258,19 +240,11 @@ def get_recommendations(ticker):
             'Sell': sell_count
         }
         return consensus
-    except Exception as e:
-        st.error(f"Error fetching analyst recommendations for {ticker}: {str(e)}")
+    else:
+        st.warning("No recommendation data found in analyst estimates.")
         return None
-
-def compute_analyst_consensus(recommendations):
-    """Compute analyst consensus based on recommendations."""
-    if recommendations is None or all(v == 0 for v in recommendations.values()):
-        return None
-
-    return recommendations
 
 def display_analyst_recommendations(consensus):
-    """Display analyst recommendations as a pie chart."""
     if consensus is None:
         st.warning("No analyst consensus available.")
         return
@@ -281,46 +255,32 @@ def display_analyst_recommendations(consensus):
     st.plotly_chart(fig, use_container_width=True)
 
 def compute_returns(data):
-    """Compute daily and cumulative returns."""
     data['Daily Return'] = data['Close'].pct_change()
     data['Cumulative Return'] = (1 + data['Daily Return']).cumprod()
     return data
 
 def compute_moving_averages(data, windows=[50, 200]):
-    """Compute moving averages."""
     for window in windows:
         data[f'MA{window}'] = data['Close'].rolling(window=window).mean()
     return data
 
-def get_rsi(data, window=14):
-    """Compute Relative Strength Index (RSI)."""
-    delta = data['Close'].diff()
-    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
-    ema_up = up.ewm(com=window-1, adjust=False).mean()
-    ema_down = down.ewm(com=window-1, adjust=False).mean()
-    rs = ema_up / ema_down
-    data['RSI'] = 100 - (100/(1 + rs))
-    return data
-
 def display_stock_chart(data, ticker):
-    """Display stock price chart with moving averages and volume."""
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         vertical_spacing=0.03, subplot_titles=(f'{ticker} Stock Price', 'Volume'),
                         row_heights=[0.7, 0.3])
 
     fig.add_trace(go.Candlestick(x=data.index,
-                                 open=data['Open'], high=data['High'],
-                                 low=data['Low'], close=data['Close'],
-                                 name='Price'), row=1, col=1)
+                open=data['Open'], high=data['High'],
+                low=data['Low'], close=data['Close'],
+                name='Price'), row=1, col=1)
 
-    if 'MA50' in data.columns:
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='50 Day MA', line=dict(color='orange', width=1)), row=1, col=1)
-    if 'MA200' in data.columns:
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], name='200 Day MA', line=dict(color='red', width=1)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], name='50 Day MA', line=dict(color='orange', width=1)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], name='200 Day MA', line=dict(color='red', width=1)), row=1, col=1)
 
     fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume', marker_color='blue'), row=2, col=1)
 
     fig.update_layout(
+        title=f'{ticker} Stock Analysis',
         yaxis_title='Stock Price',
         xaxis_rangeslider_visible=False,
         height=800,
@@ -332,7 +292,6 @@ def display_stock_chart(data, ticker):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_returns_chart(data, ticker):
-    """Display cumulative returns chart."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data.index, y=data['Cumulative Return'], mode='lines', name='Cumulative Return'))
     fig.update_layout(
@@ -344,7 +303,6 @@ def display_returns_chart(data, ticker):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_esg_data(esg_data):
-    """Display ESG scores as a bar chart."""
     st.subheader("ESG Data")
     relevant_metrics = ['totalEsg', 'environmentScore', 'socialScore', 'governanceScore']
     numeric_data = esg_data[esg_data.index.isin(relevant_metrics)]
@@ -379,50 +337,44 @@ def display_esg_data(esg_data):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_company_info(info):
-    """Display company information with metrics."""
     st.subheader("Company Information")
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Sector", info.get('Sector', 'N/A'))
-        if isinstance(info.get('Full Time Employees'), (int, float)):
-            st.metric("Full Time Employees", f"{int(info.get('Full Time Employees')):,}")
-        else:
-            st.metric("Full Time Employees", "N/A")
+        st.metric("Sector", info.get('sector', 'N/A'))
+        st.metric("Full Time Employees", f"{int(info.get('fullTimeEmployees', 'N/A')):,}" if info.get('fullTimeEmployees', 'N/A') != 'N/A' else 'N/A')
     with col2:
-        st.metric("Industry", info.get('Industry', 'N/A'))
-        st.metric("Country", info.get('Country', 'N/A'))
+        st.metric("Industry", info.get('industry', 'N/A'))
+        st.metric("Country", info.get('country', 'N/A'))
 
     st.subheader("Financial Metrics")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Market Cap", format_large_number(info.get('Market Cap')))
+        st.metric("Market Cap", format_large_number(info.get('marketCap')))
     with col2:
-        forward_pe = info.get('Forward P/E', 'N/A')
-        forward_pe_display = f"{forward_pe:.2f}" if isinstance(forward_pe, (int, float)) else 'N/A'
-        st.metric("Forward P/E", forward_pe_display)
+        st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A'):.2f}" if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
     with col3:
-        dividend_yield = info.get('Dividend Yield', 'N/A')
-        dividend_yield_display = f"{dividend_yield:.2%}" if isinstance(dividend_yield, (int, float)) else 'N/A'
-        st.metric("Dividend Yield", dividend_yield_display)
+        st.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
 
     st.subheader("Company Overview")
-    st.write(info.get('Long Business Summary', 'N/A'))
+    st.write(info.get('longBusinessSummary', 'N/A'))
 
     st.subheader("Contact Information")
-    if info.get('Website', 'N/A') != 'N/A':
-        st.markdown(f"**Website:** [{info.get('Website')}]({info.get('Website')})")
-    else:
-        st.markdown(f"**Website:** N/A")
-    st.markdown(f"**Phone:** {info.get('Phone', 'N/A')}")
-    address_parts = [info.get('Address', ''), info.get('City', ''), info.get('State', ''), info.get('Zip', ''), info.get('Country', '')]
+    st.write(f"Website: {info.get('website', 'N/A')}")
+    st.write(f"Phone: {info.get('phone', 'N/A')}")
+    address_parts = [info.get('address1', ''), info.get('city', ''), info.get('state', ''), info.get('zip', ''), info.get('country', '')]
     address = ', '.join(part for part in address_parts if part)
-    st.markdown(f"**Address:** {address}")
+    st.write(f"Address: {address}")
+
+def get_rsi(data, window=14):
+    delta = data['Close'].diff()
+    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
+    ema_up = up.ewm(com=window-1, adjust=False).mean()
+    ema_down = down.ewm(com=window-1, adjust=False).mean()
+    rs = ema_up / ema_down
+    data['RSI'] = 100 - (100/(1 + rs))
+    return data
 
 def display_rsi_chart(data):
-    """Display RSI chart."""
-    if 'RSI' not in data.columns:
-        st.warning("RSI data not available.")
-        return
     st.subheader("Relative Strength Index (RSI)")
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -440,12 +392,11 @@ def display_rsi_chart(data):
     st.plotly_chart(fig, use_container_width=True)
 
 def generate_recommendation(ticker, company_info, esg_data, sentiment_score, data, analyst_consensus):
-    """Generate stock recommendation based on various factors."""
     score = 0
     factors = {}
 
     # P/E Ratio
-    forward_pe = company_info.get('Forward P/E', None)
+    forward_pe = company_info.get('forwardPE', None)
     if isinstance(forward_pe, (int, float)) and forward_pe != 0:
         if forward_pe < 15:
             factors['P/E Ratio'] = 'Positive'
@@ -459,7 +410,7 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
         factors['P/E Ratio'] = 'Neutral'
 
     # Dividend Yield
-    dividend_yield = company_info.get('Dividend Yield', None)
+    dividend_yield = company_info.get('dividendYield', None)
     if isinstance(dividend_yield, (int, float)):
         if dividend_yield > 0.03:
             factors['Dividend Yield'] = 'Positive'
@@ -499,18 +450,15 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
         factors['Sentiment'] = 'Neutral'
 
     # RSI Indicator
-    if 'RSI' in data.columns:
-        latest_rsi = data['RSI'].iloc[-1]
-        if latest_rsi < 30:
-            factors['RSI'] = 'Positive (Oversold)'
-            score += 1
-        elif 30 <= latest_rsi <= 70:
-            factors['RSI'] = 'Neutral'
-        else:
-            factors['RSI'] = 'Negative (Overbought)'
-            score -= 1
-    else:
+    latest_rsi = data['RSI'].iloc[-1]
+    if latest_rsi < 30:
+        factors['RSI'] = 'Positive (Oversold)'
+        score += 1
+    elif 30 <= latest_rsi <= 70:
         factors['RSI'] = 'Neutral'
+    else:
+        factors['RSI'] = 'Negative (Overbought)'
+        score -= 1
 
     # Analyst Consensus
     if analyst_consensus is not None:
@@ -539,7 +487,6 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
     return recommendation, factors
 
 def display_recommendation_visualization(recommendation, factors):
-    """Visualize recommendation factors and overall score."""
     # Convert factors to numerical scores
     factor_scores = []
     factor_names = []
@@ -555,8 +502,7 @@ def display_recommendation_visualization(recommendation, factors):
 
     # Create a bar chart of factor scores
     fig = go.Figure(data=[
-        go.Bar(x=factor_names, y=factor_scores,
-               marker_color=['green' if s > 0 else 'red' if s < 0 else 'gray' for s in factor_scores])
+        go.Bar(x=factor_names, y=factor_scores, marker_color=['green' if s > 0 else 'red' if s < 0 else 'gray' for s in factor_scores])
     ])
     fig.update_layout(
         title="Factor Scores",
@@ -587,52 +533,187 @@ def display_recommendation_visualization(recommendation, factors):
     fig_gauge.update_layout(height=400)
     st.plotly_chart(fig_gauge, use_container_width=True)
 
-# ----------------------------
-# Display Functions for Financials
-# ----------------------------
+@st.cache_data(ttl=3600)
+def get_income_statement(ticker):
+    try:
+        # Fetch income statement data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "INCOME_STATEMENT",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
 
-def display_income_statement(financials):
-    """Display income statement data."""
+        if "annualReports" not in data:
+            st.warning(f"No income statement data available for {ticker}")
+            return None
+
+        income_statement = pd.DataFrame(data["annualReports"])
+        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+        return income_statement
+    except Exception as e:
+        st.error(f"Error fetching income statement data for {ticker}: {str(e)}")
+        return None
+
+def display_income_statement(income_statement):
     st.subheader("Income Statement")
-    if financials is None or financials.empty:
+    # Check if income_statement is valid
+    if income_statement is None or income_statement.empty:
         st.warning("Income statement data not available.")
         return
 
     # Display the last 5 annual reports
-    reports = financials.head(5)
-    reports.index = reports.index.strftime('%Y-%m-%d')
-    st.dataframe(reports.style.format("{:,.0f}"))
+    reports = income_statement.head(5)
+    reports = reports.set_index('fiscalDateEnding')
+
+    # Select relevant columns
+    columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the income statement data: {', '.join(missing_columns)}")
+        return
+
+    reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
+    reports = reports.transpose()
+
+    # Rename the index for better readability
+    reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
+
+@st.cache_data(ttl=3600)
+def get_balance_sheet(ticker):
+    try:
+        # Fetch balance sheet data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "BALANCE_SHEET",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No balance sheet data available for {ticker}")
+            return None
+
+        balance_sheet = pd.DataFrame(data["annualReports"])
+        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
+        return balance_sheet
+    except Exception as e:
+        st.error(f"Error fetching balance sheet data for {ticker}: {str(e)}")
+        return None
 
 def display_balance_sheet(balance_sheet):
-    """Display balance sheet data."""
     st.subheader("Balance Sheet")
+    # Check if balance_sheet is valid
     if balance_sheet is None or balance_sheet.empty:
         st.warning("Balance sheet data not available.")
         return
 
-    # Display the last 5 annual reports
     reports = balance_sheet.head(5)
-    reports.index = reports.index.strftime('%Y-%m-%d')
-    st.dataframe(reports.style.format("{:,.0f}"))
+    reports = reports.set_index('fiscalDateEnding')
+
+    # Select relevant columns
+    columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the balance sheet data: {', '.join(missing_columns)}")
+        return
+
+    reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
+    reports = reports.transpose()
+
+    # Rename the index for better readability
+    reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
+
+@st.cache_data(ttl=3600)
+def get_cash_flow(ticker):
+    try:
+        # Fetch cash flow data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "CASH_FLOW",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No cash flow data available for {ticker}")
+            return None
+
+        cash_flow = pd.DataFrame(data["annualReports"])
+        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
+        return cash_flow
+    except Exception as e:
+        st.error(f"Error fetching cash flow data for {ticker}: {str(e)}")
+        return None
 
 def display_cash_flow(cash_flow):
-    """Display cash flow statement data."""
     st.subheader("Cash Flow Statement")
+    # Check if cash_flow is valid
     if cash_flow is None or cash_flow.empty:
         st.warning("Cash flow data not available.")
         return
 
-    # Display the last 5 annual reports
     reports = cash_flow.head(5)
-    reports.index = reports.index.strftime('%Y-%m-%d')
-    st.dataframe(reports.style.format("{:,.0f}"))
+    reports = reports.set_index('fiscalDateEnding')
 
-# ----------------------------
-# Main Function
-# ----------------------------
+    # Select relevant columns
+    columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the cash flow data: {', '.join(missing_columns)}")
+        return
+
+    reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
+    reports = reports.transpose()
+
+    # Rename the index for better readability
+    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
 
 def main():
-    """Main function to run the Streamlit app."""
+    st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
+
     st.sidebar.title("Stock Analysis Dashboard")
     ticker = st.sidebar.text_input("Enter Stock Ticker", value="NVDA").upper()
     period = st.sidebar.selectbox("Select Time Period",
@@ -641,35 +722,23 @@ def main():
                                   index=3)
 
     end_date = datetime.now().strftime('%Y-%m-%d')
-    if period.endswith('M'):
-        delta_days = int(period[:-1]) * 30
-    else:
-        delta_days = int(period[:-1]) * 365
-    start_date = (datetime.now() - timedelta(days=delta_days)).strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=int(period[:-1]) * (30 if period[-1] == 'M' else 365))).strftime('%Y-%m-%d')
 
     st.title(f"{ticker} Enhanced Stock Analysis Dashboard")
     st.write(f"Analyzing data from {start_date} to {end_date}")
 
     with st.spinner('Fetching data...'):
-        # Fetch S&P 500 companies list
-        sp500_df = get_sp500_companies()
-
-        # Fetch stock data
         stock_data = get_stock_data(ticker, start_date, end_date)
         company_info = get_company_info(ticker)
         esg_data = get_esg_data(ticker)
-        news = get_news(ticker)
-        sentiment_score = get_sentiment_score(news)
-        financial_statements = get_financial_statements(ticker)
-        analyst_recommendations = get_recommendations(ticker)
-        analyst_consensus = compute_analyst_consensus(analyst_recommendations)
-
-        # Determine industry and fetch competitors
-        industry = company_info.get('Industry', 'N/A') if company_info else 'N/A'
-        competitors = get_competitors(ticker, industry, sp500_df) if industry != 'N/A' else []
-
-        # Compare performance
-        comparison_data = compare_performance(ticker, competitors) if competitors else None
+        sentiment_score = get_sentiment_score(ticker)
+        competitors = get_competitors(ticker)
+        comparison_data = compare_performance(ticker, competitors)
+        income_statement = get_income_statement(ticker)
+        balance_sheet = get_balance_sheet(ticker)
+        cash_flow = get_cash_flow(ticker)
+        analyst_estimates = get_analyst_estimates(ticker)
+        analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
@@ -679,7 +748,7 @@ def main():
         # Generate Recommendation
         recommendation, factors = generate_recommendation(ticker, company_info, esg_data, sentiment_score, stock_data, analyst_consensus)
 
-        # Display Top Metrics
+        # Update top-level metrics to include Recommendation
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}",
                     f"{stock_data['Daily Return'].iloc[-1]:.2%}")
@@ -696,10 +765,9 @@ def main():
             col5.metric("Sentiment", "N/A")
         col6.metric("Recommendation", recommendation)
 
-        # Create Tabs
+        # Create tabs
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Sentiment", "🔍 Unique Insights", "📊 Financials"])
 
-        # Tab 1: Stock Chart
         with tab1:
             st.header("Stock Price Analysis")
             display_stock_chart(stock_data, ticker)
@@ -708,33 +776,31 @@ def main():
             st.header("Technical Indicators")
             display_rsi_chart(stock_data)
 
-        # Tab 2: ESG Analysis
         with tab2:
             if esg_data is not None:
                 display_esg_data(esg_data)
             else:
                 st.warning("ESG data not available for this stock.")
 
-        # Tab 3: Company Info
         with tab3:
             if company_info:
                 display_company_info(company_info)
             else:
                 st.warning("Company information not available.")
 
-        # Tab 4: News & Sentiment
         with tab4:
+            news = get_news(ticker)
             col1, col2 = st.columns(2)
             with col1:
                 if news:
                     display_news(news)
                 else:
                     st.warning("No recent news available for this stock.")
+
             with col2:
                 st.subheader("Sentiment Analysis")
                 st.write(f"The overall sentiment based on recent news headlines is **{sentiment_score}**.")
 
-        # Tab 5: Unique Insights
         with tab5:
             st.header("Unique Insights")
 
@@ -750,36 +816,39 @@ def main():
             st.subheader("Recommendation Visualization")
             display_recommendation_visualization(recommendation, factors)
 
-            # Competitor Comparison
             if comparison_data is not None and not comparison_data.empty:
                 st.subheader("Competitor Comparison")
                 st.plotly_chart(create_comparison_chart(comparison_data), use_container_width=True)
             else:
                 st.warning("Competitor comparison data not available.")
 
-            # Analyst Recommendations
             st.subheader("Analyst Recommendations")
             display_analyst_recommendations(analyst_consensus)
 
-        # Tab 6: Financials
         with tab6:
             st.header("Financial Statements")
             fin_tab1, fin_tab2, fin_tab3 = st.tabs(["Income Statement", "Balance Sheet", "Cash Flow Statement"])
             with fin_tab1:
-                if financial_statements and 'annual_financials' in financial_statements and not financial_statements['annual_financials'].empty:
-                    display_income_statement(financial_statements['annual_financials'])
+                if income_statement is not None:
+                    display_income_statement(income_statement)
                 else:
                     st.warning("Income statement data not available.")
             with fin_tab2:
-                if financial_statements and 'annual_balance_sheet' in financial_statements and not financial_statements['annual_balance_sheet'].empty:
-                    display_balance_sheet(financial_statements['annual_balance_sheet'])
+                if balance_sheet is not None:
+                    display_balance_sheet(balance_sheet)
                 else:
                     st.warning("Balance sheet data not available.")
             with fin_tab3:
-                if financial_statements and 'annual_cashflow' in financial_statements and not financial_statements['annual_cashflow'].empty:
-                    display_cash_flow(financial_statements['annual_cashflow'])
+                if cash_flow is not None:
+                    display_cash_flow(cash_flow)
                 else:
                     st.warning("Cash flow data not available.")
 
-    if __name__ == "__main__":
-        main()
+    else:
+        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
+    st.markdown("---")
+    st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
+
+if __name__ == "__main__":
+    main()
