@@ -478,15 +478,39 @@ def get_income_statement(ticker):
 
 def display_income_statement(income_statement):
     st.subheader("Income Statement")
+    # Check if income_statement is valid
+    if income_statement is None or income_statement.empty:
+        st.warning("Income statement data not available.")
+        return
+
     # Display the last 5 annual reports
     reports = income_statement.head(5)
     reports = reports.set_index('fiscalDateEnding')
+
     # Select relevant columns
     columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the income statement data: {', '.join(missing_columns)}")
+        return
+
     reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
     reports = reports.transpose()
+
+    # Rename the index for better readability
     reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
-    st.dataframe(reports.style.format("{:,.0f}"))
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
 
 @st.cache_data(ttl=3600)
 def get_balance_sheet(ticker):
@@ -514,15 +538,38 @@ def get_balance_sheet(ticker):
 
 def display_balance_sheet(balance_sheet):
     st.subheader("Balance Sheet")
-    # Display the last 5 annual reports
+    # Check if balance_sheet is valid
+    if balance_sheet is None or balance_sheet.empty:
+        st.warning("Balance sheet data not available.")
+        return
+
     reports = balance_sheet.head(5)
     reports = reports.set_index('fiscalDateEnding')
+
     # Select relevant columns
     columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the balance sheet data: {', '.join(missing_columns)}")
+        return
+
     reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
     reports = reports.transpose()
+
+    # Rename the index for better readability
     reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
-    st.dataframe(reports.style.format("{:,.0f}"))
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
 
 @st.cache_data(ttl=3600)
 def get_cash_flow(ticker):
@@ -550,15 +597,38 @@ def get_cash_flow(ticker):
 
 def display_cash_flow(cash_flow):
     st.subheader("Cash Flow Statement")
-    # Display the last 5 annual reports
+    # Check if cash_flow is valid
+    if cash_flow is None or cash_flow.empty:
+        st.warning("Cash flow data not available.")
+        return
+
     reports = cash_flow.head(5)
     reports = reports.set_index('fiscalDateEnding')
+
     # Select relevant columns
     columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
+
+    # Check if columns exist
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the cash flow data: {', '.join(missing_columns)}")
+        return
+
     reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
     reports = reports.transpose()
+
+    # Rename the index for better readability
     reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
-    st.dataframe(reports.style.format("{:,.0f}"))
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
 
 def main():
     st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
