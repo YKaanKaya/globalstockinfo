@@ -2,6 +2,6 @@ streamlit
 pandas
 yfinance
 plotly
-requests
 textblob
 numpy
+requests
