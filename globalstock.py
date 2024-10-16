@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 from textblob import TextBlob
 import numpy as np
+import requests
 
 # Set Streamlit page configuration
 st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
@@ -31,6 +32,23 @@ def format_large_number(value):
 # ----------------------------
 # Caching Functions
 # ----------------------------
+
+@st.cache_data(ttl=3600)
+def get_sp500_companies():
+    """Fetch the list of S&P 500 companies from a reliable online source."""
+    try:
+        # Source: Wikipedia's S&P 500 list via GitHub mirror to avoid direct Wikipedia dependency
+        url = 'https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv'
+        response = requests.get(url)
+        if response.status_code != 200:
+            st.error("Failed to fetch S&P 500 companies list.")
+            return pd.DataFrame()
+        sp500 = pd.read_csv(pd.compat.StringIO(response.text))
+        sp500['Symbol'] = sp500['Symbol'].str.replace('.', '-', regex=False)  # Adjust ticker symbols if needed
+        return sp500
+    except Exception as e:
+        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker, start_date, end_date):
@@ -89,32 +107,18 @@ def get_esg_data(ticker):
         return None
 
 @st.cache_data(ttl=3600)
-def get_sp500_companies():
-    """Provide a hardcoded list of S&P 500 tickers."""
-    # List of S&P 500 tickers (partial list for brevity; extend as needed)
-    sp500_tickers = [
-        'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'GOOG', 'FB', 'TSLA', 'BRK.B', 'JPM', 'JNJ',
-        'V', 'PG', 'UNH', 'HD', 'MA', 'NVDA', 'DIS', 'PYPL', 'BAC', 'VZ',
-        # Add more tickers as needed
-    ]
-    return sp500_tickers
-
-@st.cache_data(ttl=3600)
-def get_competitors(ticker, industry):
+def get_competitors(ticker, industry, sp500_df):
     """Identify competitors within the same industry from S&P 500 list."""
     try:
-        sp500_tickers = get_sp500_companies()
-        competitors = []
-        for sp_ticker in sp500_tickers:
-            if sp_ticker == ticker:
-                continue
-            sp_stock = yf.Ticker(sp_ticker)
-            sp_info = sp_stock.info
-            sp_industry = sp_info.get('industry', 'N/A')
-            if sp_industry == industry:
-                competitors.append(sp_ticker)
-            if len(competitors) >= 5:
-                break
+        if industry == 'N/A':
+            st.warning(f"Industry information not available for {ticker}. Cannot identify competitors.")
+            return []
+        # Filter S&P 500 companies by the same industry
+        competitors_df = sp500_df[sp500_df['Industry'] == industry]
+        # Exclude the selected ticker
+        competitors_df = competitors_df[competitors_df['Symbol'] != ticker]
+        # Get the list of competitor tickers
+        competitors = competitors_df['Symbol'].tolist()[:5]  # Return top 5 competitors
         if not competitors:
             st.warning(f"No competitors found for {ticker} in the {industry} industry.")
         return competitors
@@ -127,7 +131,6 @@ def compare_performance(ticker, competitors):
     """Compare cumulative returns of the ticker with its competitors over 1 year."""
     try:
         if not competitors:
-            st.warning("No competitors found for comparison.")
             return None
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)
@@ -285,6 +288,16 @@ def compute_moving_averages(data, windows=[50, 200]):
         data[f'MA{window}'] = data['Close'].rolling(window=window).mean()
     return data
 
+def get_rsi(data, window=14):
+    """Compute Relative Strength Index (RSI)."""
+    delta = data['Close'].diff()
+    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
+    ema_up = up.ewm(com=window-1, adjust=False).mean()
+    ema_down = down.ewm(com=window-1, adjust=False).mean()
+    rs = ema_up / ema_down
+    data['RSI'] = 100 - (100/(1 + rs))
+    return data
+
 def display_stock_chart(data, ticker):
     """Display stock price chart with moving averages and volume."""
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
@@ -392,7 +405,10 @@ def display_company_info(info):
     st.write(info.get('Long Business Summary', 'N/A'))
 
     st.subheader("Contact Information")
-    st.markdown(f"**Website:** [{info.get('Website', 'N/A')}]({info.get('Website', '#')})")
+    if info.get('Website', 'N/A') != 'N/A':
+        st.markdown(f"**Website:** [{info.get('Website')}]({info.get('Website')})")
+    else:
+        st.markdown(f"**Website:** N/A")
     st.markdown(f"**Phone:** {info.get('Phone', 'N/A')}")
     address_parts = [info.get('Address', ''), info.get('City', ''), info.get('State', ''), info.get('Zip', ''), info.get('Country', '')]
     address = ', '.join(part for part in address_parts if part)
@@ -400,6 +416,9 @@ def display_company_info(info):
 
 def display_rsi_chart(data):
     """Display RSI chart."""
+    if 'RSI' not in data.columns:
+        st.warning("RSI data not available.")
+        return
     st.subheader("Relative Strength Index (RSI)")
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -476,15 +495,18 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
         factors['Sentiment'] = 'Neutral'
 
     # RSI Indicator
-    latest_rsi = data['RSI'].iloc[-1]
-    if latest_rsi < 30:
-        factors['RSI'] = 'Positive (Oversold)'
-        score += 1
-    elif 30 <= latest_rsi <= 70:
-        factors['RSI'] = 'Neutral'
+    if 'RSI' in data.columns:
+        latest_rsi = data['RSI'].iloc[-1]
+        if latest_rsi < 30:
+            factors['RSI'] = 'Positive (Oversold)'
+            score += 1
+        elif 30 <= latest_rsi <= 70:
+            factors['RSI'] = 'Neutral'
+        else:
+            factors['RSI'] = 'Negative (Overbought)'
+            score -= 1
     else:
-        factors['RSI'] = 'Negative (Overbought)'
-        score -= 1
+        factors['RSI'] = 'Neutral'
 
     # Analyst Consensus
     if analyst_consensus is not None:
@@ -574,6 +596,7 @@ def display_income_statement(financials):
 
     # Display the last 5 annual reports
     reports = financials.head(5)
+    reports.index = reports.index.strftime('%Y-%m-%d')
     st.dataframe(reports.style.format("{:,.0f}"))
 
 def display_balance_sheet(balance_sheet):
@@ -585,6 +608,7 @@ def display_balance_sheet(balance_sheet):
 
     # Display the last 5 annual reports
     reports = balance_sheet.head(5)
+    reports.index = reports.index.strftime('%Y-%m-%d')
     st.dataframe(reports.style.format("{:,.0f}"))
 
 def display_cash_flow(cash_flow):
@@ -596,6 +620,7 @@ def display_cash_flow(cash_flow):
 
     # Display the last 5 annual reports
     reports = cash_flow.head(5)
+    reports.index = reports.index.strftime('%Y-%m-%d')
     st.dataframe(reports.style.format("{:,.0f}"))
 
 # ----------------------------
@@ -622,6 +647,10 @@ def main():
     st.write(f"Analyzing data from {start_date} to {end_date}")
 
     with st.spinner('Fetching data...'):
+        # Fetch S&P 500 companies list
+        sp500_df = get_sp500_companies()
+
+        # Fetch stock data
         stock_data = get_stock_data(ticker, start_date, end_date)
         company_info = get_company_info(ticker)
         esg_data = get_esg_data(ticker)
@@ -633,7 +662,7 @@ def main():
 
         # Determine industry and fetch competitors
         industry = company_info.get('Industry', 'N/A') if company_info else 'N/A'
-        competitors = get_competitors(ticker, industry) if industry != 'N/A' else []
+        competitors = get_competitors(ticker, industry, sp500_df) if industry != 'N/A' else []
 
         # Compare performance
         comparison_data = compare_performance(ticker, competitors) if competitors else None
@@ -733,26 +762,20 @@ def main():
             st.header("Financial Statements")
             fin_tab1, fin_tab2, fin_tab3 = st.tabs(["Income Statement", "Balance Sheet", "Cash Flow Statement"])
             with fin_tab1:
-                if financial_statements and 'annual_financials' in financial_statements:
+                if financial_statements and 'annual_financials' in financial_statements and not financial_statements['annual_financials'].empty:
                     display_income_statement(financial_statements['annual_financials'])
                 else:
                     st.warning("Income statement data not available.")
             with fin_tab2:
-                if financial_statements and 'annual_balance_sheet' in financial_statements:
+                if financial_statements and 'annual_balance_sheet' in financial_statements and not financial_statements['annual_balance_sheet'].empty:
                     display_balance_sheet(financial_statements['annual_balance_sheet'])
                 else:
                     st.warning("Balance sheet data not available.")
             with fin_tab3:
-                if financial_statements and 'annual_cashflow' in financial_statements:
+                if financial_statements and 'annual_cashflow' in financial_statements and not financial_statements['annual_cashflow'].empty:
                     display_cash_flow(financial_statements['annual_cashflow'])
                 else:
                     st.warning("Cash flow data not available.")
 
-    else:
-        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
-
-    st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
-
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
