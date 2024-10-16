@@ -946,8 +946,9 @@ def main():
                 else:
                     st.warning("Cash flow data not available.")
 
-    if __name__ == "__main__":
-        main()
+     st.markdown("---")
+     st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
 
-    st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
+if __name__ == "__main__":
+    main()
+
