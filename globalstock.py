@@ -78,6 +78,20 @@ def get_esg_data(ticker):
         return None
 
 @st.cache_data(ttl=3600)
+def get_sp500_companies():
+    # Fetch the list of S&P 500 companies from Wikipedia
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        tables = pd.read_html(url)
+        df = tables[0]
+        df = df[['Symbol', 'Security', 'GICS Sector', 'GICS Sub-Industry']]
+        df.columns = ['Ticker', 'Company', 'Sector', 'Industry']
+        return df
+    except Exception as e:
+        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
 def get_competitors(ticker):
     try:
         # Get the industry of the selected ticker
@@ -104,20 +118,6 @@ def get_competitors(ticker):
     except Exception as e:
         st.error(f"Error fetching competitors for {ticker}: {str(e)}")
         return []
-
-@st.cache_data(ttl=3600)
-def get_sp500_companies():
-    # Fetch the list of S&P 500 companies from Wikipedia
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-    try:
-        tables = pd.read_html(url)
-        df = tables[0]
-        df = df[['Symbol', 'Security', 'GICS Sector', 'GICS Sub-Industry']]
-        df.columns = ['Ticker', 'Company', 'Sector', 'Industry']
-        return df
-    except Exception as e:
-        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
-        return None
 
 @st.cache_data(ttl=3600)
 def compare_performance(ticker, competitors):
@@ -164,8 +164,12 @@ def display_news(news):
     st.subheader("Latest News")
     for article in news[:5]:  # Display top 5 news articles
         st.write(f"**{article['title']}**")
-        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
-        st.write(article['link'])
+        try:
+            pub_time = datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            pub_time = "N/A"
+        st.write(f"*{pub_time}*")
+        st.write(f"[Read more]({article['link']})")
         st.write("---")
 
 @st.cache_data(ttl=3600)
@@ -190,6 +194,123 @@ def get_sentiment_score(ticker):
         return "Neutral"
 
 @st.cache_data(ttl=3600)
+def get_income_statement(ticker):
+    try:
+        # Fetch income statement data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "INCOME_STATEMENT",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No income statement data available for {ticker} from Alpha Vantage")
+            return None
+
+        income_statement = pd.DataFrame(data["annualReports"])
+        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+        return income_statement
+    except Exception as e:
+        st.error(f"Error fetching income statement data for {ticker} from Alpha Vantage: {str(e)}")
+        return None
+
+def get_income_statement_yf(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        income_statement = stock.financials.T  # Transpose for easier viewing
+        if income_statement.empty:
+            st.warning(f"No income statement data available for {ticker} from Yahoo Finance")
+            return None
+        income_statement.reset_index(inplace=True)
+        income_statement.rename(columns={'index': 'fiscalDateEnding'}, inplace=True)
+        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+        return income_statement
+    except Exception as e:
+        st.error(f"Error fetching income statement from Yahoo Finance: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
+def get_balance_sheet(ticker):
+    try:
+        # Fetch balance sheet data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "BALANCE_SHEET",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No balance sheet data available for {ticker} from Alpha Vantage")
+            return None
+
+        balance_sheet = pd.DataFrame(data["annualReports"])
+        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
+        return balance_sheet
+    except Exception as e:
+        st.error(f"Error fetching balance sheet data for {ticker} from Alpha Vantage: {str(e)}")
+        return None
+
+def get_balance_sheet_yf(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        balance_sheet = stock.balance_sheet.T  # Transpose for easier viewing
+        if balance_sheet.empty:
+            st.warning(f"No balance sheet data available for {ticker} from Yahoo Finance")
+            return None
+        balance_sheet.reset_index(inplace=True)
+        balance_sheet.rename(columns={'index': 'fiscalDateEnding'}, inplace=True)
+        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
+        return balance_sheet
+    except Exception as e:
+        st.error(f"Error fetching balance sheet from Yahoo Finance: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
+def get_cash_flow(ticker):
+    try:
+        # Fetch cash flow data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "CASH_FLOW",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No cash flow data available for {ticker} from Alpha Vantage")
+            return None
+
+        cash_flow = pd.DataFrame(data["annualReports"])
+        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
+        return cash_flow
+    except Exception as e:
+        st.error(f"Error fetching cash flow data for {ticker} from Alpha Vantage: {str(e)}")
+        return None
+
+def get_cash_flow_yf(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        cash_flow = stock.cashflow.T  # Transpose for easier viewing
+        if cash_flow.empty:
+            st.warning(f"No cash flow data available for {ticker} from Yahoo Finance")
+            return None
+        cash_flow.reset_index(inplace=True)
+        cash_flow.rename(columns={'index': 'fiscalDateEnding'}, inplace=True)
+        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
+        return cash_flow
+    except Exception as e:
+        st.error(f"Error fetching cash flow from Yahoo Finance: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
 def get_analyst_estimates(ticker):
     try:
         # Fetch analyst estimates data from Alpha Vantage
@@ -203,7 +324,7 @@ def get_analyst_estimates(ticker):
         data = response.json()
 
         if "analystEstimates" not in data:
-            st.warning(f"No analyst estimates data available for {ticker}")
+            st.warning(f"No analyst estimates data available for {ticker} from Alpha Vantage")
             return None
 
         estimates = data["analystEstimates"]
@@ -211,7 +332,21 @@ def get_analyst_estimates(ticker):
         estimates_df = pd.DataFrame(estimates)
         return estimates_df
     except Exception as e:
-        st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
+        st.error(f"Error fetching analyst estimates for {ticker} from Alpha Vantage: {str(e)}")
+        return None
+
+def get_analyst_estimates_yf(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        # yfinance does not provide detailed analyst estimates, but we can fetch key statistics
+        # Alternatively, you might consider scraping or using another API for detailed estimates
+        stats = stock.get_analysis()
+        if stats.empty:
+            st.warning(f"No analyst data available for {ticker} from Yahoo Finance")
+            return None
+        return stats
+    except Exception as e:
+        st.error(f"Error fetching analyst data from Yahoo Finance: {str(e)}")
         return None
 
 def compute_analyst_consensus_alpha_vantage(estimates_df):
@@ -220,7 +355,7 @@ def compute_analyst_consensus_alpha_vantage(estimates_df):
 
     # Look for consensus recommendations
     if 'recommendationKey' in estimates_df.columns:
-        recs = estimates_df['recommendationKey'].dropna()
+        recs = estimates_df['recommendationKey'].dropna().str.lower()
         # Count the number of 'buy', 'hold', 'sell' recommendations
         buy_terms = ['buy', 'strong_buy']
         hold_terms = ['hold']
@@ -341,7 +476,10 @@ def display_company_info(info):
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Sector", info.get('sector', 'N/A'))
-        st.metric("Full Time Employees", f"{int(info.get('fullTimeEmployees', 'N/A')):,}" if info.get('fullTimeEmployees', 'N/A') != 'N/A' else 'N/A')
+        if isinstance(info.get('fullTimeEmployees'), (int, float)):
+            st.metric("Full Time Employees", f"{int(info.get('fullTimeEmployees')):,}")
+        else:
+            st.metric("Full Time Employees", "N/A")
     with col2:
         st.metric("Industry", info.get('industry', 'N/A'))
         st.metric("Country", info.get('country', 'N/A'))
@@ -351,19 +489,23 @@ def display_company_info(info):
     with col1:
         st.metric("Market Cap", format_large_number(info.get('marketCap')))
     with col2:
-        st.metric("Forward P/E", f"{info.get('forwardPE', 'N/A'):.2f}" if isinstance(info.get('forwardPE'), (int, float)) else 'N/A')
+        forward_pe = info.get('forwardPE', 'N/A')
+        forward_pe_display = f"{forward_pe:.2f}" if isinstance(forward_pe, (int, float)) else 'N/A'
+        st.metric("Forward P/E", forward_pe_display)
     with col3:
-        st.metric("Dividend Yield", f"{info.get('dividendYield', 'N/A'):.2%}" if isinstance(info.get('dividendYield'), (int, float)) else 'N/A')
+        dividend_yield = info.get('dividendYield', 'N/A')
+        dividend_yield_display = f"{dividend_yield:.2%}" if isinstance(dividend_yield, (int, float)) else 'N/A'
+        st.metric("Dividend Yield", dividend_yield_display)
 
     st.subheader("Company Overview")
     st.write(info.get('longBusinessSummary', 'N/A'))
 
     st.subheader("Contact Information")
-    st.write(f"Website: {info.get('website', 'N/A')}")
-    st.write(f"Phone: {info.get('phone', 'N/A')}")
+    st.write(f"**Website:** {info.get('website', 'N/A')}")
+    st.write(f"**Phone:** {info.get('phone', 'N/A')}")
     address_parts = [info.get('address1', ''), info.get('city', ''), info.get('state', ''), info.get('zip', ''), info.get('country', '')]
     address = ', '.join(part for part in address_parts if part)
-    st.write(f"Address: {address}")
+    st.write(f"**Address:** {address}")
 
 def get_rsi(data, window=14):
     delta = data['Close'].diff()
@@ -534,28 +676,40 @@ def display_recommendation_visualization(recommendation, factors):
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 @st.cache_data(ttl=3600)
-def get_income_statement(ticker):
-    try:
-        # Fetch income statement data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "INCOME_STATEMENT",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
+def get_income_statement_fallback(ticker):
+    # Attempt to fetch income statement from Alpha Vantage
+    income_statement = get_income_statement(ticker)
+    if income_statement is None:
+        # Fallback to yfinance
+        income_statement = get_income_statement_yf(ticker)
+    return income_statement
 
-        if "annualReports" not in data:
-            st.warning(f"No income statement data available for {ticker}")
-            return None
+@st.cache_data(ttl=3600)
+def get_balance_sheet_fallback(ticker):
+    # Attempt to fetch balance sheet from Alpha Vantage
+    balance_sheet = get_balance_sheet(ticker)
+    if balance_sheet is None:
+        # Fallback to yfinance
+        balance_sheet = get_balance_sheet_yf(ticker)
+    return balance_sheet
 
-        income_statement = pd.DataFrame(data["annualReports"])
-        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
-        return income_statement
-    except Exception as e:
-        st.error(f"Error fetching income statement data for {ticker}: {str(e)}")
-        return None
+@st.cache_data(ttl=3600)
+def get_cash_flow_fallback(ticker):
+    # Attempt to fetch cash flow from Alpha Vantage
+    cash_flow = get_cash_flow(ticker)
+    if cash_flow is None:
+        # Fallback to yfinance
+        cash_flow = get_cash_flow_yf(ticker)
+    return cash_flow
+
+@st.cache_data(ttl=3600)
+def get_analyst_estimates_fallback(ticker):
+    # Attempt to fetch analyst estimates from Alpha Vantage
+    analyst_estimates = get_analyst_estimates(ticker)
+    if analyst_estimates is None:
+        # Fallback to yfinance
+        analyst_estimates = get_analyst_estimates_yf(ticker)
+    return analyst_estimates
 
 def display_income_statement(income_statement):
     st.subheader("Income Statement")
@@ -593,30 +747,6 @@ def display_income_statement(income_statement):
 
     st.dataframe(formatted_reports)
 
-@st.cache_data(ttl=3600)
-def get_balance_sheet(ticker):
-    try:
-        # Fetch balance sheet data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "BALANCE_SHEET",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "annualReports" not in data:
-            st.warning(f"No balance sheet data available for {ticker}")
-            return None
-
-        balance_sheet = pd.DataFrame(data["annualReports"])
-        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
-        return balance_sheet
-    except Exception as e:
-        st.error(f"Error fetching balance sheet data for {ticker}: {str(e)}")
-        return None
-
 def display_balance_sheet(balance_sheet):
     st.subheader("Balance Sheet")
     # Check if balance_sheet is valid
@@ -651,30 +781,6 @@ def display_balance_sheet(balance_sheet):
     formatted_reports = reports.style.format("{:,.0f}")
 
     st.dataframe(formatted_reports)
-
-@st.cache_data(ttl=3600)
-def get_cash_flow(ticker):
-    try:
-        # Fetch cash flow data from Alpha Vantage
-        url = f"https://www.alphavantage.co/query"
-        params = {
-            "function": "CASH_FLOW",
-            "symbol": ticker,
-            "apikey": api_key
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-
-        if "annualReports" not in data:
-            st.warning(f"No cash flow data available for {ticker}")
-            return None
-
-        cash_flow = pd.DataFrame(data["annualReports"])
-        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
-        return cash_flow
-    except Exception as e:
-        st.error(f"Error fetching cash flow data for {ticker}: {str(e)}")
-        return None
 
 def display_cash_flow(cash_flow):
     st.subheader("Cash Flow Statement")
@@ -734,10 +840,10 @@ def main():
         sentiment_score = get_sentiment_score(ticker)
         competitors = get_competitors(ticker)
         comparison_data = compare_performance(ticker, competitors)
-        income_statement = get_income_statement(ticker)
-        balance_sheet = get_balance_sheet(ticker)
-        cash_flow = get_cash_flow(ticker)
-        analyst_estimates = get_analyst_estimates(ticker)
+        income_statement = get_income_statement_fallback(ticker)
+        balance_sheet = get_balance_sheet_fallback(ticker)
+        cash_flow = get_cash_flow_fallback(ticker)
+        analyst_estimates = get_analyst_estimates_fallback(ticker)
         analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
 
     if stock_data is not None and not stock_data.empty:
