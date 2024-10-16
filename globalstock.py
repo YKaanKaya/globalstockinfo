@@ -176,6 +176,9 @@ def get_news(ticker):
 def display_news(news):
     """Display the latest news articles."""
     st.subheader("Latest News")
+    if not news:
+        st.warning("No news available.")
+        return
     for article in news[:5]:  # Display top 5 news articles
         st.markdown(f"### [{article['title']}]({article['link']})")
         try:
@@ -237,6 +240,10 @@ def get_recommendations(ticker):
         recommendations = stock.recommendations
         if recommendations is None or recommendations.empty:
             st.warning(f"No analyst recommendations available for {ticker} from Yahoo Finance")
+            return None
+        # Ensure 'To Grade' column exists
+        if 'To Grade' not in recommendations.columns:
+            st.warning(f"'To Grade' column not found in recommendations for {ticker}")
             return None
         # Process recommendations to count 'Buy', 'Hold', 'Sell'
         recommendations = recommendations['To Grade'].dropna().str.lower()
