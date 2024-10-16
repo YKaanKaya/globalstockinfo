@@ -405,6 +405,161 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
 
     return recommendation, factors
 
+def display_recommendation_visualization(recommendation, factors):
+    # Convert factors to numerical scores
+    factor_scores = []
+    factor_names = []
+    for factor, assessment in factors.items():
+        if 'Positive' in assessment:
+            score = 1
+        elif 'Negative' in assessment:
+            score = -1
+        else:
+            score = 0
+        factor_names.append(factor)
+        factor_scores.append(score)
+
+    # Create a bar chart of factor scores
+    fig = go.Figure(data=[
+        go.Bar(x=factor_names, y=factor_scores, marker_color=['green' if s > 0 else 'red' if s < 0 else 'gray' for s in factor_scores])
+    ])
+    fig.update_layout(
+        title="Factor Scores",
+        xaxis_title="Factors",
+        yaxis_title="Score",
+        yaxis=dict(tickmode='linear', tick0=-1, dtick=1),
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Create a gauge chart for overall recommendation
+    total_score = sum(factor_scores)
+    max_score = len(factor_scores)
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = total_score,
+        title = {'text': "Total Score"},
+        gauge = {
+            'axis': {'range': [-max_score, max_score]},
+            'bar': {'color': "darkblue"},
+            'steps' : [
+                {'range': [-max_score, -1], 'color': "red"},
+                {'range': [-1, 1], 'color': "gray"},
+                {'range': [1, max_score], 'color': "green"}],
+            'threshold' : {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': total_score}
+        }
+    ))
+    fig_gauge.update_layout(height=400)
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+@st.cache_data(ttl=3600)
+def get_income_statement(ticker):
+    try:
+        # Fetch income statement data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "INCOME_STATEMENT",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No income statement data available for {ticker}")
+            return None
+
+        income_statement = pd.DataFrame(data["annualReports"])
+        income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+        return income_statement
+    except Exception as e:
+        st.error(f"Error fetching income statement data for {ticker}: {str(e)}")
+        return None
+
+def display_income_statement(income_statement):
+    st.subheader("Income Statement")
+    # Display the last 5 annual reports
+    reports = income_statement.head(5)
+    reports = reports.set_index('fiscalDateEnding')
+    # Select relevant columns
+    columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+    reports = reports[columns_to_display]
+    reports = reports.transpose()
+    reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
+    st.dataframe(reports.style.format("{:,.0f}"))
+
+@st.cache_data(ttl=3600)
+def get_balance_sheet(ticker):
+    try:
+        # Fetch balance sheet data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "BALANCE_SHEET",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No balance sheet data available for {ticker}")
+            return None
+
+        balance_sheet = pd.DataFrame(data["annualReports"])
+        balance_sheet['fiscalDateEnding'] = pd.to_datetime(balance_sheet['fiscalDateEnding'])
+        return balance_sheet
+    except Exception as e:
+        st.error(f"Error fetching balance sheet data for {ticker}: {str(e)}")
+        return None
+
+def display_balance_sheet(balance_sheet):
+    st.subheader("Balance Sheet")
+    # Display the last 5 annual reports
+    reports = balance_sheet.head(5)
+    reports = reports.set_index('fiscalDateEnding')
+    # Select relevant columns
+    columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
+    reports = reports[columns_to_display]
+    reports = reports.transpose()
+    reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
+    st.dataframe(reports.style.format("{:,.0f}"))
+
+@st.cache_data(ttl=3600)
+def get_cash_flow(ticker):
+    try:
+        # Fetch cash flow data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "CASH_FLOW",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "annualReports" not in data:
+            st.warning(f"No cash flow data available for {ticker}")
+            return None
+
+        cash_flow = pd.DataFrame(data["annualReports"])
+        cash_flow['fiscalDateEnding'] = pd.to_datetime(cash_flow['fiscalDateEnding'])
+        return cash_flow
+    except Exception as e:
+        st.error(f"Error fetching cash flow data for {ticker}: {str(e)}")
+        return None
+
+def display_cash_flow(cash_flow):
+    st.subheader("Cash Flow Statement")
+    # Display the last 5 annual reports
+    reports = cash_flow.head(5)
+    reports = reports.set_index('fiscalDateEnding')
+    # Select relevant columns
+    columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
+    reports = reports[columns_to_display]
+    reports = reports.transpose()
+    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
+    st.dataframe(reports.style.format("{:,.0f}"))
+
 def main():
     st.set_page_config(layout="wide", page_title="Enhanced Stock Analysis Dashboard")
 
@@ -428,6 +583,9 @@ def main():
         sentiment_score = get_sentiment_score(ticker)
         competitors = get_competitors(ticker)
         comparison_data = compare_performance(ticker, competitors)
+        income_statement = get_income_statement(ticker)
+        balance_sheet = get_balance_sheet(ticker)
+        cash_flow = get_cash_flow(ticker)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
@@ -437,7 +595,8 @@ def main():
         # Generate Recommendation
         recommendation, factors = generate_recommendation(ticker, company_info, esg_data, sentiment_score, stock_data)
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        # Update top-level metrics to include Recommendation
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         col1.metric("Current Price", f"${stock_data['Close'].iloc[-1]:.2f}",
                     f"{stock_data['Daily Return'].iloc[-1]:.2%}")
         col2.metric("50-Day MA", f"${stock_data['MA50'].iloc[-1]:.2f}")
@@ -451,16 +610,10 @@ def main():
             col5.metric("Sentiment", sentiment_score)
         else:
             col5.metric("Sentiment", "N/A")
+        col6.metric("Recommendation", recommendation)
 
-        st.header("Automated Stock Recommendation")
-        st.metric("Recommendation", recommendation)
-        st.write("**Disclaimer:** This recommendation is generated automatically based on predefined criteria and is not financial advice. This app is intended for improving technical skills and sharing them with potential interested parties.")
-
-        st.subheader("Factors Considered")
-        for factor, assessment in factors.items():
-            st.write(f"- **{factor}**: {assessment}")
-
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Sentiment", "🔍 Unique Insights"])
+        # Create tabs
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📈 Stock Chart", "🌿 ESG Analysis", "ℹ️ Company Info", "📰 News & Sentiment", "🔍 Unique Insights", "📊 Financials"])
 
         with tab1:
             st.header("Stock Price Analysis")
@@ -498,17 +651,48 @@ def main():
         with tab5:
             st.header("Unique Insights")
 
+            st.subheader("Automated Stock Recommendation")
+            st.write("**Recommendation:**", recommendation)
+            st.write("**Disclaimer:** This recommendation is generated automatically based on predefined criteria and is not financial advice. This app is intended for improving technical skills and sharing them with potential interested parties.")
+
+            st.subheader("Factors Considered")
+            for factor, assessment in factors.items():
+                st.write(f"- **{factor}**: {assessment}")
+
+            # Visualization for Recommendation
+            st.subheader("Recommendation Visualization")
+            display_recommendation_visualization(recommendation, factors)
+
             if comparison_data is not None and not comparison_data.empty:
                 st.subheader("Competitor Comparison")
                 st.plotly_chart(create_comparison_chart(comparison_data), use_container_width=True)
             else:
                 st.warning("Competitor comparison data not available.")
 
+        with tab6:
+            st.header("Financial Statements")
+            fin_tab1, fin_tab2, fin_tab3 = st.tabs(["Income Statement", "Balance Sheet", "Cash Flow Statement"])
+            with fin_tab1:
+                if income_statement is not None:
+                    display_income_statement(income_statement)
+                else:
+                    st.warning("Income statement data not available.")
+            with fin_tab2:
+                if balance_sheet is not None:
+                    display_balance_sheet(balance_sheet)
+                else:
+                    st.warning("Balance sheet data not available.")
+            with fin_tab3:
+                if cash_flow is not None:
+                    display_cash_flow(cash_flow)
+                else:
+                    st.warning("Cash flow data not available.")
+
     else:
         st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
 
     st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance and Wikipedia. This dashboard is for informational purposes only.")
+    st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
