@@ -74,10 +74,19 @@ def get_company_info(ticker):
 @st.cache_data(ttl=3600)
 def get_competitors(ticker):
     try:
+        # yfinance does not support fetching competitors directly.
+        # As an alternative, we can fetch companies in the same industry.
         stock = yf.Ticker(ticker)
-        peers = stock.get_peers()
-        if peers:
-            return peers[:5]  # Return top 5 competitors
+        industry = stock.info.get('industry', None)
+        if industry:
+            # For demonstration, we will use a predefined list of tickers for certain industries.
+            industry_tickers = {
+                'Semiconductors': ['AMD', 'INTC', 'TSM', 'ASML', 'TXN'],
+                # Add more industries and their respective tickers as needed.
+            }
+            competitors = industry_tickers.get(industry, [])
+            competitors = [comp for comp in competitors if comp != ticker][:5]
+            return competitors
         return []
     except Exception as e:
         st.error(f"Error fetching competitors for {ticker}: {str(e)}")
@@ -86,6 +95,9 @@ def get_competitors(ticker):
 @st.cache_data(ttl=3600)
 def compare_performance(ticker, competitors):
     try:
+        if not competitors:
+            st.warning("No competitors found for comparison.")
+            return None
         end_date = datetime.now()
         start_date = end_date - timedelta(days=365)
         data = yf.download([ticker] + competitors, start=start_date, end=end_date)['Adj Close']
@@ -142,65 +154,75 @@ def get_news(ticker):
         return None
 
 def display_news(news):
-    st.subheader("Latest News")
-    for article in news[:5]:  # Display top 5 news articles
-        st.write(f"**{article['title']}**")
-        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
-        st.write(article['link'])
-        st.write("---")
+        st.subheader("Latest News")
+        for article in news[:5]:  # Display top 5 news articles
+            st.write(f"**{article['title']}**")
+            st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
+            st.write(article['link'])
+            st.write("---")
 
 @st.cache_data(ttl=3600)
 def get_recommendations(ticker):
     try:
         stock = yf.Ticker(ticker)
-        return stock.recommendation_trend
+        recommendations = stock.recommendations
+        if recommendations is not None and not recommendations.empty:
+            latest_recommendations = recommendations[['To Grade']].tail(100)
+            # Map grades to categories
+            mapping = {
+                'Strong Buy': 'Strong Buy',
+                'Buy': 'Buy',
+                'Hold': 'Hold',
+                'Sell': 'Sell',
+                'Strong Sell': 'Strong Sell',
+                'Underperform': 'Sell',
+                'Outperform': 'Buy',
+                'Neutral': 'Hold',
+                'Market Perform': 'Hold',
+                'Perform': 'Hold',
+                'Overweight': 'Buy',
+                'Underweight': 'Sell',
+                'Equal-Weight': 'Hold',
+                # Add other mappings as necessary
+            }
+            latest_recommendations['Recommendation'] = latest_recommendations['To Grade'].map(mapping)
+            recommendation_counts = latest_recommendations['Recommendation'].value_counts()
+            return recommendation_counts
+        else:
+            return None
     except Exception as e:
         st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
         return None
 
-def display_recommendations(recommendations):
-    if recommendations is not None and not recommendations.empty:
+def display_recommendations(recommendation_counts):
+    if recommendation_counts is not None and not recommendation_counts.empty:
         st.subheader("Analyst Recommendations")
 
-        # Use the last 4 periods
-        last_4_periods = recommendations.tail(4).set_index('period')
-
-        # Mapping for better column names
-        column_mapping = {
-            'strongBuy': 'Strong Buy',
-            'buy': 'Buy',
-            'hold': 'Hold',
-            'sell': 'Sell',
-            'strongSell': 'Strong Sell'
-        }
-
         fig = go.Figure()
-        categories = ['strongSell', 'sell', 'hold', 'buy', 'strongBuy']
+        categories = ['Strong Sell', 'Sell', 'Hold', 'Buy', 'Strong Buy']
         colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
 
         for category, color in zip(categories, colors):
-            if category in last_4_periods.columns:
-                fig.add_trace(go.Bar(
-                    x=last_4_periods.index,
-                    y=last_4_periods[category],
-                    name=column_mapping.get(category, category),
-                    marker_color=color
-                ))
+            count = recommendation_counts.get(category, 0)
+            fig.add_trace(go.Bar(
+                x=[category],
+                y=[count],
+                name=category,
+                marker_color=color
+            ))
 
         fig.update_layout(
-            title="Analyst Recommendations (Last 4 Periods)",
-            xaxis_title="Period",
+            title="Analyst Recommendations (Last 100 Recommendations)",
+            xaxis_title="Recommendation",
             yaxis_title="Number of Analysts",
-            barmode='stack',
-            height=400
+            height=400,
+            showlegend=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
         st.write("Raw Recommendation Data:")
-        # Update column names in the dataframe
-        recommendations.rename(columns=column_mapping, inplace=True)
-        st.dataframe(recommendations.tail(10))  # Display last 10 recommendations
+        st.dataframe(recommendation_counts)
     else:
         st.warning("No analyst recommendations available.")
 
