@@ -21,6 +21,20 @@ def format_large_number(value):
         return f"${value:,.0f}"
 
 @st.cache_data(ttl=3600)
+def get_sp500_companies():
+    # Fetch the list of S&P 500 companies from Wikipedia
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    try:
+        tables = pd.read_html(url)
+        df = tables[0]
+        df = df[['Symbol', 'Security', 'GICS Sector', 'GICS Sub-Industry']]
+        df.columns = ['Ticker', 'Company', 'Sector', 'Industry']
+        return df
+    except Exception as e:
+        st.error(f"Error fetching S&P 500 companies list: {str(e)}")
+        return None
+
+@st.cache_data(ttl=3600)
 def get_stock_data(ticker, start_date, end_date):
     try:
         stock = yf.Ticker(ticker)
@@ -74,20 +88,27 @@ def get_company_info(ticker):
 @st.cache_data(ttl=3600)
 def get_competitors(ticker):
     try:
-        # yfinance does not support fetching competitors directly.
-        # As an alternative, we can fetch companies in the same industry.
-        stock = yf.Ticker(ticker)
-        industry = stock.info.get('industry', None)
-        if industry:
-            # For demonstration, we will use a predefined list of tickers for certain industries.
-            industry_tickers = {
-                'Semiconductors': ['AMD', 'INTC', 'TSM', 'ASML', 'TXN'],
-                # Add more industries and their respective tickers as needed.
-            }
-            competitors = industry_tickers.get(industry, [])
-            competitors = [comp for comp in competitors if comp != ticker][:5]
-            return competitors
-        return []
+        # Get the industry of the selected ticker
+        company_info = get_company_info(ticker)
+        if not company_info or company_info['industry'] == 'N/A':
+            st.warning(f"Industry information not available for {ticker}")
+            return []
+        industry = company_info['industry']
+
+        # Get the list of S&P 500 companies
+        sp500_df = get_sp500_companies()
+        if sp500_df is None or sp500_df.empty:
+            st.warning("Could not retrieve S&P 500 companies.")
+            return []
+
+        # Filter companies in the same industry
+        competitors_df = sp500_df[sp500_df['Industry'] == industry]
+        # Exclude the selected ticker
+        competitors_df = competitors_df[competitors_df['Ticker'] != ticker]
+
+        # Get the list of competitor tickers
+        competitors = competitors_df['Ticker'].tolist()[:5]  # Return top 5 competitors
+        return competitors
     except Exception as e:
         st.error(f"Error fetching competitors for {ticker}: {str(e)}")
         return []
@@ -154,12 +175,12 @@ def get_news(ticker):
         return None
 
 def display_news(news):
-        st.subheader("Latest News")
-        for article in news[:5]:  # Display top 5 news articles
-            st.write(f"**{article['title']}**")
-            st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
-            st.write(article['link'])
-            st.write("---")
+    st.subheader("Latest News")
+    for article in news[:5]:  # Display top 5 news articles
+        st.write(f"**{article['title']}**")
+        st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
+        st.write(article['link'])
+        st.write("---")
 
 @st.cache_data(ttl=3600)
 def get_recommendations(ticker):
@@ -167,7 +188,21 @@ def get_recommendations(ticker):
         stock = yf.Ticker(ticker)
         recommendations = stock.recommendations
         if recommendations is not None and not recommendations.empty:
-            latest_recommendations = recommendations[['To Grade']].tail(100)
+            # Reset index to ensure 'Date' is a column
+            recommendations.reset_index(inplace=True)
+            # Determine which columns are present
+            grade_columns = ['To Grade', 'Action', 'Firm']
+            # Use 'To Grade' or 'Action' column for recommendations
+            if 'To Grade' in recommendations.columns:
+                latest_recommendations = recommendations[['To Grade']].tail(100)
+                grade_column = 'To Grade'
+            elif 'Action' in recommendations.columns:
+                latest_recommendations = recommendations[['Action']].tail(100)
+                grade_column = 'Action'
+            else:
+                st.warning("No suitable grade column found in recommendations.")
+                return None
+
             # Map grades to categories
             mapping = {
                 'Strong Buy': 'Strong Buy',
@@ -183,12 +218,19 @@ def get_recommendations(ticker):
                 'Overweight': 'Buy',
                 'Underweight': 'Sell',
                 'Equal-Weight': 'Hold',
+                'Equal-weight': 'Hold',
+                'Sector Perform': 'Hold',
+                'Sector Outperform': 'Buy',
+                'Positive': 'Buy',
+                'Negative': 'Sell',
+                'Mixed': 'Hold',
                 # Add other mappings as necessary
             }
-            latest_recommendations['Recommendation'] = latest_recommendations['To Grade'].map(mapping)
+            latest_recommendations['Recommendation'] = latest_recommendations[grade_column].map(mapping)
             recommendation_counts = latest_recommendations['Recommendation'].value_counts()
             return recommendation_counts
         else:
+            st.warning("No recommendations data available.")
             return None
     except Exception as e:
         st.error(f"Error fetching recommendations for {ticker}: {str(e)}")
@@ -197,11 +239,11 @@ def get_recommendations(ticker):
 def display_recommendations(recommendation_counts):
     if recommendation_counts is not None and not recommendation_counts.empty:
         st.subheader("Analyst Recommendations")
-
-        fig = go.Figure()
+        
         categories = ['Strong Sell', 'Sell', 'Hold', 'Buy', 'Strong Buy']
         colors = ['red', 'lightcoral', 'gray', 'lightgreen', 'green']
-
+        
+        fig = go.Figure()
         for category, color in zip(categories, colors):
             count = recommendation_counts.get(category, 0)
             fig.add_trace(go.Bar(
@@ -210,7 +252,7 @@ def display_recommendations(recommendation_counts):
                 name=category,
                 marker_color=color
             ))
-
+        
         fig.update_layout(
             title="Analyst Recommendations (Last 100 Recommendations)",
             xaxis_title="Recommendation",
@@ -218,9 +260,9 @@ def display_recommendations(recommendation_counts):
             height=400,
             showlegend=False
         )
-
+        
         st.plotly_chart(fig, use_container_width=True)
-
+        
         st.write("Raw Recommendation Data:")
         st.dataframe(recommendation_counts)
     else:
@@ -459,7 +501,7 @@ def main():
         st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
 
     st.markdown("---")
-    st.markdown("Data provided by Yahoo Finance. This dashboard is for informational purposes only.")
+    st.markdown("Data provided by Yahoo Finance and Wikipedia. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
