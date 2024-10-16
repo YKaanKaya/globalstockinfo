@@ -190,56 +190,59 @@ def get_sentiment_score(ticker):
         return "Neutral"
 
 @st.cache_data(ttl=3600)
-def get_analyst_recommendations(ticker):
+def get_analyst_estimates(ticker):
     try:
-        stock = yf.Ticker(ticker)
-        recs = stock.recommendations
-        if recs is None or recs.empty:
-            st.warning(f"No analyst recommendations found for {ticker}")
+        # Fetch analyst estimates data from Alpha Vantage
+        url = f"https://www.alphavantage.co/query"
+        params = {
+            "function": "ANALYST_ESTIMATES",
+            "symbol": ticker,
+            "apikey": api_key
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        if "analystEstimates" not in data:
+            st.warning(f"No analyst estimates data available for {ticker}")
             return None
-        return recs
+
+        estimates = data["analystEstimates"]
+        # Convert the estimates to a DataFrame
+        estimates_df = pd.DataFrame(estimates)
+        return estimates_df
     except Exception as e:
-        st.error(f"Error fetching analyst recommendations for {ticker}: {str(e)}")
+        st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
         return None
 
-def compute_analyst_consensus(recs):
-    if recs is None or recs.empty:
+def compute_analyst_consensus_alpha_vantage(estimates_df):
+    if estimates_df is None or estimates_df.empty:
         return None
-    latest_recs = recs.tail(100)  # Consider the last 100 recommendations
 
-    # Determine the correct column for grades
-    grade_columns = ['To Grade', 'Action']
-    for col in grade_columns:
-        if col in latest_recs.columns:
-            grades = latest_recs[col].dropna()
-            break
+    # Look for consensus recommendations
+    if 'recommendationKey' in estimates_df.columns:
+        recs = estimates_df['recommendationKey'].dropna()
+        # Count the number of 'buy', 'hold', 'sell' recommendations
+        buy_terms = ['buy', 'strong_buy']
+        hold_terms = ['hold']
+        sell_terms = ['sell', 'strong_sell']
+
+        buy_count = recs[recs.isin(buy_terms)].count()
+        hold_count = recs[recs.isin(hold_terms)].count()
+        sell_count = recs[recs.isin(sell_terms)].count()
+
+        total = buy_count + hold_count + sell_count
+        if total == 0:
+            return None
+
+        consensus = {
+            'Buy': buy_count,
+            'Hold': hold_count,
+            'Sell': sell_count
+        }
+        return consensus
     else:
-        st.warning("No suitable column found for analyst recommendations.")
+        st.warning("No recommendation data found in analyst estimates.")
         return None
-
-    if grades.empty:
-        return None
-
-    # Standardize grades
-    buy_terms = ['Buy', 'Strong Buy', 'Overweight', 'Add', 'Positive', 'Outperform']
-    hold_terms = ['Hold', 'Neutral', 'Equal-Weight', 'Market Perform']
-    sell_terms = ['Sell', 'Underperform', 'Underweight', 'Reduce', 'Negative']
-
-    # Convert grades to strings for consistent comparison
-    grades = grades.astype(str)
-
-    buy_count = grades[grades.isin(buy_terms)].count()
-    hold_count = grades[grades.isin(hold_terms)].count()
-    sell_count = grades[grades.isin(sell_terms)].count()
-    total = buy_count + hold_count + sell_count
-    if total == 0:
-        return None
-    consensus = {
-        'Buy': buy_count,
-        'Hold': hold_count,
-        'Sell': sell_count
-    }
-    return consensus
 
 def display_analyst_recommendations(consensus):
     if consensus is None:
@@ -734,8 +737,8 @@ def main():
         income_statement = get_income_statement(ticker)
         balance_sheet = get_balance_sheet(ticker)
         cash_flow = get_cash_flow(ticker)
-        analyst_recs = get_analyst_recommendations(ticker)
-        analyst_consensus = compute_analyst_consensus(analyst_recs)
+        analyst_estimates = get_analyst_estimates(ticker)
+        analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
