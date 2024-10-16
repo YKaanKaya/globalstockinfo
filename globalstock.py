@@ -338,13 +338,26 @@ def get_analyst_estimates(ticker):
 def get_analyst_estimates_yf(ticker):
     try:
         stock = yf.Ticker(ticker)
-        # yfinance does not provide detailed analyst estimates, but we can fetch key statistics
-        # Alternatively, you might consider scraping or using another API for detailed estimates
-        stats = stock.get_analysis()
-        if stats.empty:
+        recommendations = stock.recommendations
+        if recommendations is None or recommendations.empty:
             st.warning(f"No analyst data available for {ticker} from Yahoo Finance")
             return None
-        return stats
+        # Process recommendations to count 'Buy', 'Hold', 'Sell'
+        recommendations = recommendations['To Grade'].dropna().str.lower()
+        buy_terms = ['buy', 'strong buy']
+        hold_terms = ['hold']
+        sell_terms = ['sell', 'strong sell']
+
+        buy_count = recommendations[recommendations.isin(buy_terms)].count()
+        hold_count = recommendations[recommendations.isin(hold_terms)].count()
+        sell_count = recommendations[recommendations.isin(sell_terms)].count()
+
+        consensus = {
+            'Buy': buy_count,
+            'Hold': hold_count,
+            'Sell': sell_count
+        }
+        return consensus
     except Exception as e:
         st.error(f"Error fetching analyst data from Yahoo Finance: {str(e)}")
         return None
@@ -397,6 +410,15 @@ def compute_returns(data):
 def compute_moving_averages(data, windows=[50, 200]):
     for window in windows:
         data[f'MA{window}'] = data['Close'].rolling(window=window).mean()
+    return data
+
+def get_rsi(data, window=14):
+    delta = data['Close'].diff()
+    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
+    ema_up = up.ewm(com=window-1, adjust=False).mean()
+    ema_down = down.ewm(com=window-1, adjust=False).mean()
+    rs = ema_up / ema_down
+    data['RSI'] = 100 - (100/(1 + rs))
     return data
 
 def display_stock_chart(data, ticker):
@@ -506,15 +528,6 @@ def display_company_info(info):
     address_parts = [info.get('address1', ''), info.get('city', ''), info.get('state', ''), info.get('zip', ''), info.get('country', '')]
     address = ', '.join(part for part in address_parts if part)
     st.write(f"**Address:** {address}")
-
-def get_rsi(data, window=14):
-    delta = data['Close'].diff()
-    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
-    ema_up = up.ewm(com=window-1, adjust=False).mean()
-    ema_down = down.ewm(com=window-1, adjust=False).mean()
-    rs = ema_up / ema_down
-    data['RSI'] = 100 - (100/(1 + rs))
-    return data
 
 def display_rsi_chart(data):
     st.subheader("Relative Strength Index (RSI)")
@@ -708,8 +721,12 @@ def get_analyst_estimates_fallback(ticker):
     analyst_estimates = get_analyst_estimates(ticker)
     if analyst_estimates is None:
         # Fallback to yfinance
-        analyst_estimates = get_analyst_estimates_yf(ticker)
-    return analyst_estimates
+        analyst_consensus = get_analyst_estimates_yf(ticker)
+        return analyst_consensus
+    else:
+        # Process Alpha Vantage estimates to get consensus
+        analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
+        return analyst_consensus
 
 def display_income_statement(income_statement):
     st.subheader("Income Statement")
@@ -843,8 +860,7 @@ def main():
         income_statement = get_income_statement_fallback(ticker)
         balance_sheet = get_balance_sheet_fallback(ticker)
         cash_flow = get_cash_flow_fallback(ticker)
-        analyst_estimates = get_analyst_estimates_fallback(ticker)
-        analyst_consensus = compute_analyst_consensus_alpha_vantage(analyst_estimates)
+        analyst_consensus = get_analyst_estimates_fallback(ticker)
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
