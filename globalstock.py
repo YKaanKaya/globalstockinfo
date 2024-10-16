@@ -207,8 +207,9 @@ def get_sentiment_score(ticker):
 
 @st.cache_data(ttl=3600)
 def get_analyst_estimates(ticker):
-    """Fetch analyst estimates data from Alpha Vantage."""
+    """Fetch analyst estimates data from Alpha Vantage or yfinance as fallback."""
     try:
+        # Attempt to fetch from Alpha Vantage
         url = f"https://www.alphavantage.co/query"
         params = {
             "function": "ANALYST_ESTIMATES",
@@ -218,7 +219,20 @@ def get_analyst_estimates(ticker):
         response = requests.get(url, params=params)
         data = response.json()
 
-        if "analystEstimates" not in data:
+        if "analystEstimates" in data:
+            estimates = pd.DataFrame(data["analystEstimates"])
+            if "recommendationKey" in estimates.columns:
+                recommendations = estimates['recommendationKey'].dropna().str.lower()
+                consensus = {
+                    'Buy': recommendations.isin(['buy', 'strong buy']).sum(),
+                    'Hold': recommendations.isin(['hold']).sum(),
+                    'Sell': recommendations.isin(['sell', 'strong sell']).sum()
+                }
+                return consensus
+            else:
+                st.warning(f"'recommendationKey' column not found in analyst estimates for {ticker} from Alpha Vantage.")
+                return None
+        else:
             st.warning(f"No analyst estimates data available for {ticker} from Alpha Vantage. Attempting to fetch from yfinance.")
             # Fallback to yfinance
             stock = yf.Ticker(ticker)
@@ -227,24 +241,7 @@ def get_analyst_estimates(ticker):
                 st.warning(f"No analyst recommendations available for {ticker} from yfinance.")
                 return None
             # Process recommendations
-            consensus = {
-                'Buy': recommendations['To Grade'].str.lower().isin(['buy', 'strong buy']).sum(),
-                'Hold': recommendations['To Grade'].str.lower().isin(['hold']).sum(),
-                'Sell': recommendations['To Grade'].str.lower().isin(['sell', 'strong sell']).sum()
-            }
-            return consensus
-        else:
-            estimates = data["analystEstimates"]
-            if "recommendationKey" not in estimates.columns:
-                st.warning(f"'recommendationKey' column not found in analyst estimates for {ticker} from Alpha Vantage.")
-                return None
-            recommendations = estimates['recommendationKey'].dropna().str.lower()
-            consensus = {
-                'Buy': recommendations.isin(['buy', 'strong buy']).sum(),
-                'Hold': recommendations.isin(['hold']).sum(),
-                'Sell': recommendations.isin(['sell', 'strong sell']).sum()
-            }
-            return consensus
+            return process_recommendations(recommendations)
     except Exception as e:
         st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
         # Attempt to fetch from yfinance as a secondary fallback
@@ -255,15 +252,35 @@ def get_analyst_estimates(ticker):
                 st.warning(f"No analyst recommendations available for {ticker} from yfinance.")
                 return None
             # Process recommendations
-            consensus = {
-                'Buy': recommendations['To Grade'].str.lower().isin(['buy', 'strong buy']).sum(),
-                'Hold': recommendations['To Grade'].str.lower().isin(['hold']).sum(),
-                'Sell': recommendations['To Grade'].str.lower().isin(['sell', 'strong sell']).sum()
-            }
-            return consensus
+            return process_recommendations(recommendations)
         except Exception as y:
             st.error(f"Error fetching analyst estimates for {ticker} from yfinance: {str(y)}")
             return None
+
+def process_recommendations(recommendations):
+    """Process the recommendations DataFrame to compute consensus."""
+    try:
+        # Check which columns are available
+        if 'To Grade' in recommendations.columns:
+            grades = recommendations['To Grade'].dropna().str.lower()
+        elif 'Rating' in recommendations.columns:
+            grades = recommendations['Rating'].dropna().str.lower()
+        elif 'Action' in recommendations.columns:
+            grades = recommendations['Action'].dropna().str.lower()
+        else:
+            st.warning("No recognizable recommendation columns found in data.")
+            return None
+
+        # Compute consensus
+        consensus = {
+            'Buy': grades.isin(['buy', 'strong buy', 'outperform', 'overweight']).sum(),
+            'Hold': grades.isin(['hold', 'neutral', 'equal-weight']).sum(),
+            'Sell': grades.isin(['sell', 'strong sell', 'underperform', 'underweight']).sum()
+        }
+        return consensus
+    except Exception as e:
+        st.error(f"Error processing analyst recommendations: {str(e)}")
+        return None
 
 def display_analyst_recommendations(consensus):
     """Display analyst recommendations as a pie chart."""
@@ -272,6 +289,9 @@ def display_analyst_recommendations(consensus):
         return
     labels = list(consensus.keys())
     values = list(consensus.values())
+    if sum(values) == 0:
+        st.warning("No analyst recommendations data to display.")
+        return
     fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3)])
     fig.update_layout(title_text="Analyst Recommendations Consensus")
     st.plotly_chart(fig, use_container_width=True)
@@ -286,6 +306,16 @@ def compute_moving_averages(data, windows=[50, 200]):
     """Compute moving averages."""
     for window in windows:
         data[f'MA{window}'] = data['Close'].rolling(window=window).mean()
+    return data
+
+def get_rsi(data, window=14):
+    """Calculate the Relative Strength Index (RSI)."""
+    delta = data['Close'].diff()
+    up, down = delta.clip(lower=0), -1*delta.clip(upper=0)
+    ema_up = up.ewm(com=window-1, adjust=False).mean()
+    ema_down = down.ewm(com=window-1, adjust=False).mean()
+    rs = ema_up / ema_down
+    data['RSI'] = 100 - (100/(1 + rs))
     return data
 
 def display_stock_chart(data, ticker):
@@ -612,7 +642,9 @@ def display_income_statement(income_statement):
     reports = reports.set_index('fiscalDateEnding')
 
     # Select relevant columns
-    columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+    columns_to_display = ['Total Revenue', 'Gross Profit', 'Ebit', 'Net Income']
+    # Normalize column names to match
+    reports.columns = reports.columns.str.title().str.replace('_', ' ')
 
     # Check if columns exist
     missing_columns = [col for col in columns_to_display if col not in reports.columns]
@@ -627,9 +659,6 @@ def display_income_statement(income_statement):
 
     # Transpose the DataFrame
     reports = reports.transpose()
-
-    # Rename the index for better readability
-    reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
 
     # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
@@ -695,7 +724,9 @@ def display_balance_sheet(balance_sheet):
     reports = reports.set_index('fiscalDateEnding')
 
     # Select relevant columns
-    columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
+    columns_to_display = ['Total Assets', 'Total Liab', 'Total Stockholder Equity']
+    # Normalize column names to match
+    reports.columns = reports.columns.str.title().str.replace('_', ' ')
 
     # Check if columns exist
     missing_columns = [col for col in columns_to_display if col not in reports.columns]
@@ -710,9 +741,6 @@ def display_balance_sheet(balance_sheet):
 
     # Transpose the DataFrame
     reports = reports.transpose()
-
-    # Rename the index for better readability
-    reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
 
     # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
@@ -778,7 +806,9 @@ def display_cash_flow(cash_flow):
     reports = reports.set_index('fiscalDateEnding')
 
     # Select relevant columns
-    columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
+    columns_to_display = ['Total Cash From Operating Activities', 'Total Cashflows From Investing Activities', 'Total Cash From Financing Activities', 'Net Income']
+    # Normalize column names to match
+    reports.columns = reports.columns.str.title().str.replace('_', ' ')
 
     # Check if columns exist
     missing_columns = [col for col in columns_to_display if col not in reports.columns]
@@ -793,9 +823,6 @@ def display_cash_flow(cash_flow):
 
     # Transpose the DataFrame
     reports = reports.transpose()
-
-    # Rename the index for better readability
-    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
 
     # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
@@ -946,9 +973,11 @@ def main():
                 else:
                     st.warning("Cash flow data not available.")
 
+    else:
+        st.error(f"Unable to fetch data for {ticker}. Please check the ticker symbol and try again.")
+
     st.markdown("---")
     st.markdown("Data provided by Yahoo Finance and Alpha Vantage. This dashboard is for informational purposes only.")
 
 if __name__ == "__main__":
     main()
-
