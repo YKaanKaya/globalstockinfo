@@ -392,34 +392,43 @@ def display_rsi_chart(data):
     st.plotly_chart(fig, use_container_width=True)
 
 def generate_recommendation(ticker, company_info, esg_data, sentiment_score, data, analyst_consensus):
+    """Generate stock recommendation based on various factors."""
     score = 0
     factors = {}
+    weights = {
+        'P/E Ratio': 1,
+        'Dividend Yield': 0.5,
+        'ESG Score': 0.5,
+        'Sentiment': 1,
+        'RSI': 1,
+        'Analyst Consensus': 2
+    }
 
-    # P/E Ratio
+    # P/E Ratio (Adjusted thresholds for industry norms)
     forward_pe = company_info.get('forwardPE', None)
     if isinstance(forward_pe, (int, float)) and forward_pe != 0:
-        if forward_pe < 15:
+        if forward_pe < 20:
             factors['P/E Ratio'] = 'Positive'
-            score += 1
-        elif 15 <= forward_pe <= 25:
+            score += 1 * weights['P/E Ratio']
+        elif 20 <= forward_pe <= 40:
             factors['P/E Ratio'] = 'Neutral'
         else:
             factors['P/E Ratio'] = 'Negative'
-            score -= 1
+            score -= 1 * weights['P/E Ratio']
     else:
         factors['P/E Ratio'] = 'Neutral'
 
-    # Dividend Yield
+    # Dividend Yield (Adjust if company typically doesn't pay dividends)
     dividend_yield = company_info.get('dividendYield', None)
     if isinstance(dividend_yield, (int, float)):
-        if dividend_yield > 0.03:
+        if dividend_yield > 0.02:
             factors['Dividend Yield'] = 'Positive'
-            score += 1
-        elif 0.01 <= dividend_yield <= 0.03:
+            score += 1 * weights['Dividend Yield']
+        elif 0.005 <= dividend_yield <= 0.02:
             factors['Dividend Yield'] = 'Neutral'
         else:
             factors['Dividend Yield'] = 'Negative'
-            score -= 1
+            score -= 1 * weights['Dividend Yield']
     else:
         factors['Dividend Yield'] = 'Neutral'
 
@@ -428,63 +437,78 @@ def generate_recommendation(ticker, company_info, esg_data, sentiment_score, dat
         esg_score = esg_data.loc['totalEsg'].values[0]
         if esg_score > 50:
             factors['ESG Score'] = 'Positive'
-            score += 1
+            score += 1 * weights['ESG Score']
         elif 30 <= esg_score <= 50:
             factors['ESG Score'] = 'Neutral'
         else:
             factors['ESG Score'] = 'Negative'
-            score -= 1
+            score -= 1 * weights['ESG Score']
     else:
         factors['ESG Score'] = 'Neutral'
 
     # Sentiment Score
     if sentiment_score == 'Positive':
         factors['Sentiment'] = 'Positive'
-        score += 1
+        score += 1 * weights['Sentiment']
     elif sentiment_score == 'Neutral':
         factors['Sentiment'] = 'Neutral'
     elif sentiment_score == 'Negative':
         factors['Sentiment'] = 'Negative'
-        score -= 1
+        score -= 1 * weights['Sentiment']
     else:
         factors['Sentiment'] = 'Neutral'
 
     # RSI Indicator
-    latest_rsi = data['RSI'].iloc[-1]
-    if latest_rsi < 30:
-        factors['RSI'] = 'Positive (Oversold)'
-        score += 1
-    elif 30 <= latest_rsi <= 70:
-        factors['RSI'] = 'Neutral'
+    if 'RSI' in data.columns:
+        latest_rsi = data['RSI'].iloc[-1]
+        if latest_rsi < 30:
+            factors['RSI'] = 'Positive (Oversold)'
+            score += 1 * weights['RSI']
+        elif 30 <= latest_rsi <= 70:
+            factors['RSI'] = 'Neutral'
+        else:
+            factors['RSI'] = 'Negative (Overbought)'
+            score -= 1 * weights['RSI']
     else:
-        factors['RSI'] = 'Negative (Overbought)'
-        score -= 1
+        factors['RSI'] = 'Neutral'
 
-    # Analyst Consensus
+    # Analyst Consensus (Heavier weight)
     if analyst_consensus is not None:
         buy = analyst_consensus.get('Buy', 0)
         hold = analyst_consensus.get('Hold', 0)
         sell = analyst_consensus.get('Sell', 0)
-        if buy > sell and buy > hold:
-            factors['Analyst Consensus'] = 'Positive'
-            score += 1
-        elif sell > buy and sell > hold:
-            factors['Analyst Consensus'] = 'Negative'
-            score -= 1
+        total = buy + hold + sell
+        if total > 0:
+            buy_ratio = buy / total
+            sell_ratio = sell / total
+            if buy_ratio > 0.6:
+                factors['Analyst Consensus'] = 'Positive'
+                score += 1 * weights['Analyst Consensus']
+            elif sell_ratio > 0.6:
+                factors['Analyst Consensus'] = 'Negative'
+                score -= 1 * weights['Analyst Consensus']
+            else:
+                factors['Analyst Consensus'] = 'Neutral'
         else:
             factors['Analyst Consensus'] = 'Neutral'
     else:
         factors['Analyst Consensus'] = 'Neutral'
 
     # Generate Recommendation
-    if score >= 4:
+    max_score = sum(weights.values())
+    if score >= 0.6 * max_score:
+        recommendation = 'Strong Buy'
+    elif score >= 0.3 * max_score:
         recommendation = 'Buy'
-    elif score <= -1:
+    elif score <= -0.6 * max_score:
+        recommendation = 'Strong Sell'
+    elif score <= -0.3 * max_score:
         recommendation = 'Sell'
     else:
         recommendation = 'Hold'
 
     return recommendation, factors
+
 
 def display_recommendation_visualization(recommendation, factors):
     # Convert factors to numerical scores
