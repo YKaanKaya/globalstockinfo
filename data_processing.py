@@ -1,5 +1,3 @@
-# data_processing.py
-
 import pandas as pd
 import numpy as np
 from textblob import TextBlob
@@ -80,13 +78,18 @@ def compute_analyst_consensus(estimates):
 def process_recommendations(recommendations):
     """Process the recommendations DataFrame to compute consensus."""
     try:
-        # Normalize the 'To Grade' and 'Action' columns
+        # Normalize the columns
+        columns = recommendations.columns.str.lower()
+        recommendations.columns = columns
+
         grades = []
-        if 'To Grade' in recommendations.columns:
-            grades.extend(recommendations['To Grade'].dropna().str.lower())
-        if 'Action' in recommendations.columns:
-            grades.extend(recommendations['Action'].dropna().str.lower())
-        
+        if 'to grade' in columns:
+            grades.extend(recommendations['to grade'].dropna().str.lower())
+        if 'rating' in columns:
+            grades.extend(recommendations['rating'].dropna().str.lower())
+        if 'action' in columns:
+            grades.extend(recommendations['action'].dropna().str.lower())
+
         if not grades:
             st.warning("No recognizable recommendation data found.")
             return None
