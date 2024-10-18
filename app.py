@@ -1,5 +1,3 @@
-# app.py
-
 import streamlit as st
 from datetime import datetime, timedelta
 
@@ -64,6 +62,10 @@ def main():
 
     with st.spinner('Fetching data...'):
         stock_data = get_stock_data(ticker, start_date, end_date)
+        # For multiple tickers (competitors)
+        if competitors:
+            comparison_tickers = [ticker] + competitors
+            comparison_stock_data = get_stock_data(comparison_tickers, start_date, end_date)
         company_info = get_company_info(ticker)
         esg_data = get_esg_data(ticker)
         news = get_news(ticker)
