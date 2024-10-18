@@ -172,34 +172,32 @@ def get_income_statement(ticker):
         response = requests.get(url, params=params)
         data = response.json()
 
-        if "annualReports" not in data:
+        if "annualReports" in data and data["annualReports"]:
+            income_statement = pd.DataFrame(data["annualReports"])
+            income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
+            return income_statement
+        else:
             st.warning(f"No income statement data available for {ticker} from Alpha Vantage. Attempting to fetch from yfinance.")
             # Fallback to yfinance
             stock = yf.Ticker(ticker)
             financials = stock.financials
-            if financials.empty:
+            if financials is None or financials.empty:
                 st.error(f"No income statement data available for {ticker} from yfinance.")
                 return None
             income_statement = financials.transpose().reset_index()
             income_statement.rename(columns={'index': 'fiscalDateEnding'}, inplace=True)
-            income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
-            return income_statement
-        else:
-            income_statement = pd.DataFrame(data["annualReports"])
-            income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
             return income_statement
     except Exception as e:
-        st.error(f"Error fetching income statement data for {ticker}: {str(e)}")
+        st.error(f"Error fetching income statement data for {ticker} from Alpha Vantage: {str(e)}")
         # Attempt to fetch from yfinance as a secondary fallback
         try:
             stock = yf.Ticker(ticker)
             financials = stock.financials
-            if financials.empty:
+            if financials is None or financials.empty:
                 st.error(f"No income statement data available for {ticker} from yfinance.")
                 return None
             income_statement = financials.transpose().reset_index()
             income_statement.rename(columns={'index': 'fiscalDateEnding'}, inplace=True)
-            income_statement['fiscalDateEnding'] = pd.to_datetime(income_statement['fiscalDateEnding'])
             return income_statement
         except Exception as y:
             st.error(f"Error fetching income statement data for {ticker} from yfinance: {str(y)}")
