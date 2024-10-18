@@ -273,4 +273,50 @@ def display_cash_flow(cash_flow):
     reports.columns = reports.columns.str.lower()
 
     # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col.
+    missing_columns = [col for col in columns_to_display if col.lower() not in reports.columns]
+    if missing_columns:
+        st.warning(f"The following columns are missing in the cash flow data: {', '.join(missing_columns)}")
+        return
+
+    reports = reports[columns_to_display]
+
+    # Convert columns to numeric, coercing errors
+    reports = reports.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose the DataFrame
+    reports = reports.transpose()
+
+    # Rename the index for better readability
+    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
+
+    # Apply formatting
+    formatted_reports = reports.style.format("{:,.0f}")
+
+    st.dataframe(formatted_reports)
+
+def create_comparison_chart(comparison_data):
+    """Create a Plotly chart comparing cumulative returns."""
+    if comparison_data is None or comparison_data.empty:
+        st.warning("No data available for comparison.")
+        return None
+
+    fig = go.Figure()
+    for column in comparison_data.columns:
+        fig.add_trace(go.Scatter(x=comparison_data.index, y=comparison_data[column], mode='lines', name=column))
+    fig.update_layout(title="1 Year Cumulative Returns Comparison", xaxis_title="Date", yaxis_title="Cumulative Returns")
+    return fig
+
+def display_news(news):
+    """Display the latest news articles."""
+    st.subheader("Latest News")
+    if not news:
+        st.warning("No news available.")
+        return
+    for article in news[:5]:  # Display top 5 news articles
+        st.markdown(f"### [{article['title']}]({article['link']})")
+        try:
+            pub_time = datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            pub_time = "N/A"
+        st.markdown(f"*Published on: {pub_time}*")
+        st.markdown("---")
