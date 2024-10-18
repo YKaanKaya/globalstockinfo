@@ -8,17 +8,23 @@ from datetime import datetime, timedelta
 from utils import api_key
 
 @st.cache_data(ttl=3600)
-def get_stock_data(ticker, start_date, end_date):
+def get_stock_data(tickers, start_date, end_date):
     """Fetch historical stock data using yfinance."""
     try:
-        stock = yf.Ticker(ticker)
-        df = stock.history(start=start_date, end=end_date)
+        # Ensure tickers is a list if multiple tickers are provided
+        if isinstance(tickers, str):
+            tickers_list = [tickers]
+        else:
+            tickers_list = tickers
+
+        # Fetch historical data from yfinance
+        df = yf.download(tickers_list, start=start_date, end=end_date)
         if df.empty:
-            st.error(f"No data available for {ticker} in the selected date range.")
+            st.error(f"No data available for {tickers} in the selected date range.")
             return None
         return df
     except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {str(e)}")
+        st.error(f"Error fetching data for {tickers}: {str(e)}")
         return None
 
 @st.cache_data(ttl=3600)
