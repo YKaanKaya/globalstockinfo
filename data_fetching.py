@@ -140,7 +140,7 @@ def get_analyst_estimates(ticker):
         else:
             st.warning(f"No analyst estimates data available for {ticker} from Alpha Vantage.")
 
-        # Fallback to yfinance
+        # If Alpha Vantage data is not available, fetch from yfinance
         stock = yf.Ticker(ticker)
         recommendations = stock.recommendations
         if recommendations is not None and not recommendations.empty:
@@ -148,7 +148,6 @@ def get_analyst_estimates(ticker):
         else:
             st.warning(f"No analyst recommendations available for {ticker} from yfinance.")
             return None
-
     except Exception as e:
         st.error(f"Error fetching analyst estimates for {ticker}: {str(e)}")
         return None
