@@ -184,7 +184,6 @@ def display_analyst_recommendations(consensus):
     st.plotly_chart(fig, use_container_width=True)
 
 def display_income_statement(income_statement):
-    """Display income statement data."""
     st.subheader("Income Statement")
     # Check if income_statement is valid
     if income_statement is None or income_statement.empty:
@@ -195,16 +194,22 @@ def display_income_statement(income_statement):
     reports = income_statement.head(5)
     reports = reports.set_index('fiscalDateEnding')
 
-    # Select relevant columns
-    columns_to_display = ['totalRevenue', 'grossProfit', 'ebit', 'netIncome']
+    # Convert columns to lowercase
     reports.columns = reports.columns.str.lower()
 
+    # Display the columns to verify
+    st.write("Available columns:", reports.columns.tolist())
+
+    # Define columns to display (convert to lowercase)
+    columns_to_display = ['total revenue', 'gross profit', 'net income']
+
     # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col.lower() not in reports.columns]
+    missing_columns = [col for col in columns_to_display if col not in reports.columns]
     if missing_columns:
         st.warning(f"The following columns are missing in the income statement data: {', '.join(missing_columns)}")
         return
 
+    # Select relevant columns
     reports = reports[columns_to_display]
 
     # Convert columns to numeric, coercing errors
@@ -214,7 +219,7 @@ def display_income_statement(income_statement):
     reports = reports.transpose()
 
     # Rename the index for better readability
-    reports.index = ['Total Revenue', 'Gross Profit', 'EBIT', 'Net Income']
+    reports.index = ['Total Revenue', 'Gross Profit', 'Net Income']
 
     # Apply formatting
     formatted_reports = reports.style.format("{:,.0f}")
