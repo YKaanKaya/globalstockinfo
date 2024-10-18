@@ -61,26 +61,25 @@ def main():
     st.write(f"Analyzing data from {start_date} to {end_date}")
 
     with st.spinner('Fetching data...'):
+        # Pass ticker as a string
         stock_data = get_stock_data(ticker, start_date, end_date)
-        # For multiple tickers (competitors)
-        if competitors:
-            comparison_tickers = [ticker] + competitors
-            comparison_stock_data = get_stock_data(comparison_tickers, start_date, end_date)
         company_info = get_company_info(ticker)
         esg_data = get_esg_data(ticker)
         news = get_news(ticker)
         sentiment_score = get_sentiment_score(news)
         competitors = get_competitors(ticker)
-        comparison_data = None
+
+        # For competitors, pass list of tickers
         if competitors:
-            comparison_data = get_stock_data([ticker] + competitors, start_date, end_date)
-            if comparison_data is not None:
-                comparison_data = (comparison_data['Close'].pct_change() + 1).cumprod()
-        income_statement = get_income_statement(ticker)
-        balance_sheet = get_balance_sheet(ticker)
-        cash_flow = get_cash_flow(ticker)
-        analyst_estimates = get_analyst_estimates(ticker)
-        analyst_consensus = compute_analyst_consensus(analyst_estimates)
+            comparison_tickers = [ticker] + competitors
+            comparison_stock_data = get_stock_data(comparison_tickers, start_date, end_date)
+            if comparison_stock_data is not None:
+                adj_close = comparison_stock_data['Adj Close']
+                if isinstance(adj_close, pd.Series):
+                    adj_close = adj_close.to_frame()
+                comparison_data = (adj_close.pct_change() + 1).cumprod()
+        else:
+            comparison_data = None
 
     if stock_data is not None and not stock_data.empty:
         stock_data = compute_returns(stock_data)
