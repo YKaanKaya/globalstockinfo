@@ -183,122 +183,188 @@ def display_analyst_recommendations(consensus):
     fig.update_layout(title_text="Analyst Recommendations Consensus")
     st.plotly_chart(fig, use_container_width=True)
 
+# visualization.py
+
 def display_income_statement(income_statement):
+    """Display income statement data."""
     st.subheader("Income Statement")
-    # Check if income_statement is valid
     if income_statement is None or income_statement.empty:
         st.warning("Income statement data not available.")
         return
 
-    # Display the last 5 annual reports
-    reports = income_statement.head(5)
-    reports = reports.set_index('fiscalDateEnding')
-
-    # Convert columns to lowercase
-    reports.columns = reports.columns.str.lower()
-
-    # Display the columns to verify
-    st.write("Available columns:", reports.columns.tolist())
-
-    # Define columns to display (convert to lowercase)
-    columns_to_display = ['total revenue', 'gross profit', 'net income']
-
-    # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col not in reports.columns]
-    if missing_columns:
-        st.warning(f"The following columns are missing in the income statement data: {', '.join(missing_columns)}")
+    # Set index to the fiscal date
+    if 'fiscalDateEnding' in income_statement.columns:
+        reports = income_statement.set_index('fiscalDateEnding')
+    elif 'endDate' in income_statement.columns:
+        reports = income_statement.set_index('endDate')
+    else:
+        st.warning("Fiscal date information not available.")
         return
 
-    # Select relevant columns
-    reports = reports[columns_to_display]
+    # Convert columns to lowercase for consistency
+    reports.columns = reports.columns.str.lower()
 
-    # Convert columns to numeric, coercing errors
-    reports = reports.apply(pd.to_numeric, errors='coerce')
+    # Define possible column names from both data sources
+    total_revenue_cols = ['totalrevenue', 'total revenue', 'revenue']
+    gross_profit_cols = ['grossprofit', 'gross profit']
+    net_income_cols = ['netincome', 'net income']
 
-    # Transpose the DataFrame
-    reports = reports.transpose()
+    # Map the columns
+    columns_to_display = {}
+    for possible_names, display_name in zip(
+        [total_revenue_cols, gross_profit_cols, net_income_cols],
+        ['Total Revenue', 'Gross Profit', 'Net Income']
+    ):
+        for col_name in possible_names:
+            if col_name in reports.columns:
+                columns_to_display[display_name] = col_name
+                break
+        else:
+            st.warning(f"{display_name} not found in the income statement data.")
+            columns_to_display[display_name] = None
 
-    # Rename the index for better readability
-    reports.index = ['Total Revenue', 'Gross Profit', 'Net Income']
+    # Remove any None values
+    columns_to_display = {k: v for k, v in columns_to_display.items() if v is not None}
 
-    # Apply formatting
-    formatted_reports = reports.style.format("{:,.0f}")
+    if not columns_to_display:
+        st.warning("Required columns not found in the income statement data.")
+        return
 
+    # Select and rename columns
+    reports_selected = reports[list(columns_to_display.values())]
+    reports_selected.rename(columns={v: k for k, v in columns_to_display.items()}, inplace=True)
+
+    # Convert to numeric
+    reports_selected = reports_selected.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose for display
+    reports_transposed = reports_selected.transpose()
+
+    # Format and display
+    formatted_reports = reports_transposed.style.format("{:,.0f}")
     st.dataframe(formatted_reports)
+
 
 def display_balance_sheet(balance_sheet):
     """Display balance sheet data."""
     st.subheader("Balance Sheet")
-    # Check if balance_sheet is valid
     if balance_sheet is None or balance_sheet.empty:
         st.warning("Balance sheet data not available.")
         return
 
-    reports = balance_sheet.head(5)
-    reports = reports.set_index('fiscalDateEnding')
-
-    # Select relevant columns
-    columns_to_display = ['totalAssets', 'totalLiabilities', 'totalShareholderEquity']
-    reports.columns = reports.columns.str.lower()
-
-    # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col.lower() not in reports.columns]
-    if missing_columns:
-        st.warning(f"The following columns are missing in the balance sheet data: {', '.join(missing_columns)}")
+    # Set index to the fiscal date
+    if 'fiscalDateEnding' in balance_sheet.columns:
+        reports = balance_sheet.set_index('fiscalDateEnding')
+    elif 'endDate' in balance_sheet.columns:
+        reports = balance_sheet.set_index('endDate')
+    else:
+        st.warning("Fiscal date information not available.")
         return
 
-    reports = reports[columns_to_display]
+    # Convert columns to lowercase
+    reports.columns = reports.columns.str.lower()
 
-    # Convert columns to numeric, coercing errors
-    reports = reports.apply(pd.to_numeric, errors='coerce')
+    # Define possible column names
+    total_assets_cols = ['totalassets', 'total assets']
+    total_liabilities_cols = ['totalliabilities', 'total liabilities']
+    total_equity_cols = ['totalequity', 'total stockholder equity', 'total shareholder equity']
 
-    # Transpose the DataFrame
-    reports = reports.transpose()
+    # Map the columns
+    columns_to_display = {}
+    for possible_names, display_name in zip(
+        [total_assets_cols, total_liabilities_cols, total_equity_cols],
+        ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
+    ):
+        for col_name in possible_names:
+            if col_name in reports.columns:
+                columns_to_display[display_name] = col_name
+                break
+        else:
+            st.warning(f"{display_name} not found in the balance sheet data.")
+            columns_to_display[display_name] = None
 
-    # Rename the index for better readability
-    reports.index = ['Total Assets', 'Total Liabilities', 'Total Shareholder Equity']
+    # Remove any None values
+    columns_to_display = {k: v for k, v in columns_to_display.items() if v is not None}
 
-    # Apply formatting
-    formatted_reports = reports.style.format("{:,.0f}")
+    if not columns_to_display:
+        st.warning("Required columns not found in the balance sheet data.")
+        return
 
+    # Select and rename columns
+    reports_selected = reports[list(columns_to_display.values())]
+    reports_selected.rename(columns={v: k for k, v in columns_to_display.items()}, inplace=True)
+
+    # Convert to numeric
+    reports_selected = reports_selected.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose for display
+    reports_transposed = reports_selected.transpose()
+
+    # Format and display
+    formatted_reports = reports_transposed.style.format("{:,.0f}")
     st.dataframe(formatted_reports)
+
 
 def display_cash_flow(cash_flow):
     """Display cash flow statement data."""
     st.subheader("Cash Flow Statement")
-    # Check if cash_flow is valid
     if cash_flow is None or cash_flow.empty:
         st.warning("Cash flow data not available.")
         return
 
-    reports = cash_flow.head(5)
-    reports = reports.set_index('fiscalDateEnding')
-
-    # Select relevant columns
-    columns_to_display = ['operatingCashflow', 'cashflowFromInvestment', 'cashflowFromFinancing', 'netIncome']
-    reports.columns = reports.columns.str.lower()
-
-    # Check if columns exist
-    missing_columns = [col for col in columns_to_display if col.lower() not in reports.columns]
-    if missing_columns:
-        st.warning(f"The following columns are missing in the cash flow data: {', '.join(missing_columns)}")
+    # Set index to the fiscal date
+    if 'fiscalDateEnding' in cash_flow.columns:
+        reports = cash_flow.set_index('fiscalDateEnding')
+    elif 'endDate' in cash_flow.columns:
+        reports = cash_flow.set_index('endDate')
+    else:
+        st.warning("Fiscal date information not available.")
         return
 
-    reports = reports[columns_to_display]
+    # Convert columns to lowercase
+    reports.columns = reports.columns.str.lower()
 
-    # Convert columns to numeric, coercing errors
-    reports = reports.apply(pd.to_numeric, errors='coerce')
+    # Define possible column names
+    operating_cashflow_cols = ['operatingcashflow', 'total cash from operating activities']
+    investing_cashflow_cols = ['cashflowfrominvestment', 'total cashflows from investing activities']
+    financing_cashflow_cols = ['cashflowfromfinancing', 'total cash from financing activities']
+    net_income_cols = ['netincome', 'net income']
 
-    # Transpose the DataFrame
-    reports = reports.transpose()
+    # Map the columns
+    columns_to_display = {}
+    for possible_names, display_name in zip(
+        [operating_cashflow_cols, investing_cashflow_cols, financing_cashflow_cols, net_income_cols],
+        ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
+    ):
+        for col_name in possible_names:
+            if col_name in reports.columns:
+                columns_to_display[display_name] = col_name
+                break
+        else:
+            st.warning(f"{display_name} not found in the cash flow data.")
+            columns_to_display[display_name] = None
 
-    # Rename the index for better readability
-    reports.index = ['Operating Cash Flow', 'Investing Cash Flow', 'Financing Cash Flow', 'Net Income']
+    # Remove any None values
+    columns_to_display = {k: v for k, v in columns_to_display.items() if v is not None}
 
-    # Apply formatting
-    formatted_reports = reports.style.format("{:,.0f}")
+    if not columns_to_display:
+        st.warning("Required columns not found in the cash flow data.")
+        return
 
+    # Select and rename columns
+    reports_selected = reports[list(columns_to_display.values())]
+    reports_selected.rename(columns={v: k for k, v in columns_to_display.items()}, inplace=True)
+
+    # Convert to numeric
+    reports_selected = reports_selected.apply(pd.to_numeric, errors='coerce')
+
+    # Transpose for display
+    reports_transposed = reports_selected.transpose()
+
+    # Format and display
+    formatted_reports = reports_transposed.style.format("{:,.0f}")
     st.dataframe(formatted_reports)
+
 
 def create_comparison_chart(comparison_data):
     """Create a Plotly chart comparing cumulative returns."""
