@@ -163,7 +163,7 @@ def get_news(ticker):
 def display_news(news):
     st.subheader("Latest News")
     for article in news[:5]:  # Display top 5 news articles
-        st.write(f"**{article['title']}**")
+        st.write(f"{article['title']}")
         st.write(f"*{datetime.fromtimestamp(article['providerPublishTime']).strftime('%Y-%m-%d %H:%M:%S')}*")
         st.write(article['link'])
         st.write("---")
