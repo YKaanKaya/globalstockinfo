@@ -48,24 +48,21 @@ st.markdown("""
         background: transparent;
     }
     
-    /* Content blocks */
+    /* Content blocks - revert to original transparent styling */
     .block-container {
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 15px;
+        background: transparent;
         padding: 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        backdrop-filter: blur(10px);
         margin: 1rem;
     }
     
-    /* Text colors */
+    /* Text colors - revert to default for main content */
     .stMarkdown, .stText, p, div, span, label {
-        color: #2c3e50 !important;
+        color: inherit;
     }
     
-    /* Headers */
+    /* Headers - revert to default */
     h1, h2, h3, h4, h5, h6 {
-        color: #2c3e50 !important;
+        color: inherit;
         font-weight: 600;
     }
     
@@ -147,17 +144,16 @@ st.markdown("""
         font-weight: 500;
     }
     
-    /* Metrics styling */
+    /* Metrics styling - revert to default */
     .stMetric label {
-        color: #2c3e50 !important;
+        color: inherit;
         font-weight: 500;
     }
     
     .stMetric [data-testid="metric-container"] {
-        background: rgba(255, 255, 255, 0.8);
+        background: transparent;
         padding: 1rem;
         border-radius: 10px;
-        border: 1px solid rgba(0, 0, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
