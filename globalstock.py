@@ -100,35 +100,53 @@ st.markdown("""
         color: white !important;
     }
     
-    /* Sidebar styling */
-    .css-1d391kg, .css-1lcbmhc, .css-17eq0hr {
+    /* Sidebar container styling */
+    [data-testid="stSidebarContent"] {
         background: rgba(255, 255, 255, 0.95) !important;
     }
     
-    /* Sidebar text */
-    .css-1d391kg .stMarkdown, .css-1d391kg .stText, 
-    .css-1d391kg p, .css-1d391kg div, .css-1d391kg span {
-        color: #2c3e50 !important;
+    /* All sidebar text elements using exact selectors from HTML */
+    [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"],
+    [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stSidebarContent"] .stTextInput label,
+    [data-testid="stSidebarContent"] .stSelectbox label {
+        color: #1a202c !important;
+        font-weight: 600 !important;
     }
     
-    /* Sidebar success/info messages */
-    .css-1d391kg .element-container .stAlert {
-        background: rgba(255, 255, 255, 0.9) !important;
-    }
-    
-    .css-1d391kg .stSuccess {
-        background: rgba(22, 163, 74, 0.1) !important;
+    /* Success alert in sidebar - green checkmark message */
+    [data-testid="stSidebarContent"] [data-testid="stAlertContentSuccess"],
+    [data-testid="stSidebarContent"] [data-testid="stAlertContentSuccess"] p {
+        background: rgba(22, 163, 74, 0.15) !important;
         color: #15803d !important;
+        font-weight: 700 !important;
+        padding: 0.75rem !important;
+        border-radius: 8px !important;
+        border: 2px solid rgba(22, 163, 74, 0.3) !important;
     }
     
-    .css-1d391kg .stInfo {
-        background: rgba(59, 130, 246, 0.1) !important;
+    /* Info alert in sidebar - blue info message */
+    [data-testid="stSidebarContent"] [data-testid="stAlertContentInfo"],
+    [data-testid="stSidebarContent"] [data-testid="stAlertContentInfo"] p {
+        background: rgba(59, 130, 246, 0.15) !important;
         color: #1d4ed8 !important;
+        font-weight: 700 !important;
+        padding: 0.75rem !important;
+        border-radius: 8px !important;
+        border: 2px solid rgba(59, 130, 246, 0.3) !important;
     }
     
-    .css-1d391kg .stWarning {
-        background: rgba(245, 158, 11, 0.1) !important;
-        color: #d97706 !important;
+    /* Alert container styling */
+    [data-testid="stSidebarContent"] .stAlertContainer {
+        background: transparent !important;
+    }
+    
+    /* Sidebar headings */
+    [data-testid="stSidebarContent"] h1 {
+        color: #1a202c !important;
+        font-weight: 700 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1) !important;
     }
     
     /* Streamlit components */
