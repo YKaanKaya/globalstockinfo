@@ -100,6 +100,37 @@ st.markdown("""
         color: white !important;
     }
     
+    /* Sidebar styling */
+    .css-1d391kg, .css-1lcbmhc, .css-17eq0hr {
+        background: rgba(255, 255, 255, 0.95) !important;
+    }
+    
+    /* Sidebar text */
+    .css-1d391kg .stMarkdown, .css-1d391kg .stText, 
+    .css-1d391kg p, .css-1d391kg div, .css-1d391kg span {
+        color: #2c3e50 !important;
+    }
+    
+    /* Sidebar success/info messages */
+    .css-1d391kg .element-container .stAlert {
+        background: rgba(255, 255, 255, 0.9) !important;
+    }
+    
+    .css-1d391kg .stSuccess {
+        background: rgba(22, 163, 74, 0.1) !important;
+        color: #15803d !important;
+    }
+    
+    .css-1d391kg .stInfo {
+        background: rgba(59, 130, 246, 0.1) !important;
+        color: #1d4ed8 !important;
+    }
+    
+    .css-1d391kg .stWarning {
+        background: rgba(245, 158, 11, 0.1) !important;
+        color: #d97706 !important;
+    }
+    
     /* Streamlit components */
     .stSelectbox label, .stTextInput label, .stCheckbox label {
         color: #2c3e50 !important;
@@ -184,6 +215,29 @@ class StockDashboard:
         
         if 'period' not in st.session_state:
             st.session_state.period = '1y'
+        
+        # Initialize enhanced dashboard session state variables
+        if 'selected_indicators' not in st.session_state:
+            st.session_state.selected_indicators = {
+                'RSI': True,
+                'MACD': True,
+                'Bollinger Bands': False,
+                'Moving Averages': True,
+                'Stochastic': False,
+                'Volume': True
+            }
+        
+        if 'comparison_stocks' not in st.session_state:
+            st.session_state.comparison_stocks = []
+        
+        if 'watchlist' not in st.session_state:
+            st.session_state.watchlist = ['MSFT', 'GOOGL', 'TSLA', 'AMZN']
+        
+        if 'portfolio_holdings' not in st.session_state:
+            st.session_state.portfolio_holdings = {}
+        
+        if 'portfolio_transactions' not in st.session_state:
+            st.session_state.portfolio_transactions = []
     
     def render_sidebar(self):
         """Render the sidebar with controls."""

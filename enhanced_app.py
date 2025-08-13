@@ -147,11 +147,30 @@ class EnhancedStockDashboard:
         if 'current_ticker' not in st.session_state:
             st.session_state.current_ticker = 'AAPL'
         
+        if 'period' not in st.session_state:
+            st.session_state.period = '1y'
+        
         if 'comparison_stocks' not in st.session_state:
             st.session_state.comparison_stocks = []
         
         if 'watchlist' not in st.session_state:
             st.session_state.watchlist = ['MSFT', 'GOOGL', 'TSLA', 'AMZN']
+        
+        if 'selected_indicators' not in st.session_state:
+            st.session_state.selected_indicators = {
+                'RSI': True,
+                'MACD': True,
+                'Bollinger Bands': False,
+                'Moving Averages': True,
+                'Stochastic': False,
+                'Volume': True
+            }
+        
+        if 'portfolio_holdings' not in st.session_state:
+            st.session_state.portfolio_holdings = {}
+        
+        if 'portfolio_transactions' not in st.session_state:
+            st.session_state.portfolio_transactions = []
     
     def render_sidebar(self):
         """Render the sidebar with controls and navigation."""
