@@ -318,7 +318,7 @@ class EnhancedStockDashboard:
             
             chart = enhanced_viz.create_candlestick_chart(
                 enhanced_data,
-                title=f"{st.session_state.current_ticker} Price Chart",
+                title="",  # Remove duplicate title since tab already has header
                 show_volume=True,
                 indicators=indicators_to_show
             )

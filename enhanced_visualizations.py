@@ -39,21 +39,34 @@ class EnhancedVisualizations:
         
         # Create subplots
         if show_volume:
+            subplot_titles = []
+            if title:  # Only add title if not empty
+                subplot_titles.append(title)
+            subplot_titles.append('Volume')
+            if indicators:
+                subplot_titles.append('Technical Indicators')
+            
             fig = make_subplots(
                 rows=3 if indicators else 2,
                 cols=1,
                 shared_xaxes=True,
                 vertical_spacing=0.03,
-                subplot_titles=[title, 'Volume'] + (['Technical Indicators'] if indicators else []),
+                subplot_titles=subplot_titles if title else ['Volume'] + (['Technical Indicators'] if indicators else []),
                 row_heights=[0.6, 0.2, 0.2] if indicators else [0.7, 0.3]
             )
         else:
+            subplot_titles = []
+            if title:  # Only add title if not empty
+                subplot_titles.append(title)
+            if indicators:
+                subplot_titles.append('Technical Indicators')
+            
             fig = make_subplots(
                 rows=2 if indicators else 1,
                 cols=1,
                 shared_xaxes=True,
                 vertical_spacing=0.03,
-                subplot_titles=[title] + (['Technical Indicators'] if indicators else []),
+                subplot_titles=subplot_titles if subplot_titles else None,
                 row_heights=[0.7, 0.3] if indicators else [1.0]
             )
         
