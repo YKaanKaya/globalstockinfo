@@ -100,53 +100,36 @@ st.markdown("""
         color: white !important;
     }
     
-    /* Sidebar container styling */
-    [data-testid="stSidebarContent"] {
-        background: rgba(255, 255, 255, 0.95) !important;
-    }
-    
-    /* All sidebar text elements using exact selectors from HTML */
+    /* Sidebar text styling - keep original background, just fix text colors */
     [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"],
     [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"] p,
     [data-testid="stSidebarContent"] [data-testid="stMarkdownContainer"] h1,
     [data-testid="stSidebarContent"] .stTextInput label,
     [data-testid="stSidebarContent"] .stSelectbox label {
-        color: #1a202c !important;
+        color: #ffffff !important;
         font-weight: 600 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.7) !important;
     }
     
-    /* Success alert in sidebar - green checkmark message */
-    [data-testid="stSidebarContent"] [data-testid="stAlertContentSuccess"],
+    /* Success alert in sidebar - keep styling minimal, just fix text */
     [data-testid="stSidebarContent"] [data-testid="stAlertContentSuccess"] p {
-        background: rgba(22, 163, 74, 0.15) !important;
-        color: #15803d !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
-        padding: 0.75rem !important;
-        border-radius: 8px !important;
-        border: 2px solid rgba(22, 163, 74, 0.3) !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
     }
     
-    /* Info alert in sidebar - blue info message */
-    [data-testid="stSidebarContent"] [data-testid="stAlertContentInfo"],
+    /* Info alert in sidebar - keep styling minimal, just fix text */
     [data-testid="stSidebarContent"] [data-testid="stAlertContentInfo"] p {
-        background: rgba(59, 130, 246, 0.15) !important;
-        color: #1d4ed8 !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
-        padding: 0.75rem !important;
-        border-radius: 8px !important;
-        border: 2px solid rgba(59, 130, 246, 0.3) !important;
-    }
-    
-    /* Alert container styling */
-    [data-testid="stSidebarContent"] .stAlertContainer {
-        background: transparent !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
     }
     
     /* Sidebar headings */
     [data-testid="stSidebarContent"] h1 {
-        color: #1a202c !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1) !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8) !important;
     }
     
     /* Streamlit components */
